@@ -8,6 +8,8 @@ pnpm-debug.log*
 # Next.js
 .next/
 out/
+next-env.d.ts
+*.tsbuildinfo
 
 # Build
 dist/
@@ -19,6 +21,7 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
 
 # IDE
 .idea/
@@ -38,6 +41,7 @@ logs/
 # Test
 playwright-report/
 test-results/
+test-results.json
 coverage/
 
 # Prisma
@@ -51,5 +55,12 @@ coverage/
 .impeccable.md
 skills-lock.json
 
+# Playwright MCP
+.playwright-mcp/
+
 # Docker
 .dockerignore
+
+# Misc
+*.gif
+*.ico
