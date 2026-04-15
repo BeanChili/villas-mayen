@@ -1,6 +1,11 @@
-FROM node:20-alpine
+FROM node:20-bullseye-slim
 
 WORKDIR /app
+
+# Install system dependencies needed by Prisma native engines
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates openssl libssl1.1 && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package.json package-lock.json* ./
@@ -8,10 +13,8 @@ COPY package.json package-lock.json* ./
 # Install dependencies
 RUN npm ci
 
-# Copy Prisma schema
+# Copy Prisma schema and source code
 COPY prisma ./prisma/
-
-# Copy source code
 COPY src ./src/
 
 # Copy config files
@@ -23,7 +26,6 @@ RUN npx prisma generate
 # Build the application
 RUN npm run build
 
-# Expose port
 EXPOSE 3000
 
 # Start the application
