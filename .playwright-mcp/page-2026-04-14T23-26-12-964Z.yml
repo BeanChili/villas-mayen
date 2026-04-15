@@ -1,0 +1,184 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - link "VM Villas Mayen" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: VM
+          - generic [ref=e7]: Villas Mayen
+        - button [ref=e8] [cursor=pointer]:
+          - img [ref=e9]
+      - navigation [ref=e12]:
+        - generic [ref=e13]: Navegación
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /
+          - img [ref=e15]
+          - text: Dashboard
+        - link "Reservaciones" [ref=e20] [cursor=pointer]:
+          - /url: /reservations
+          - img [ref=e21]
+          - text: Reservaciones
+        - link "Clientes" [ref=e23] [cursor=pointer]:
+          - /url: /clients
+          - img [ref=e24]
+          - text: Clientes
+        - link "Cotizaciones" [ref=e29] [cursor=pointer]:
+          - /url: /quotes
+          - img [ref=e30]
+          - text: Cotizaciones
+        - link "Inventario" [ref=e33] [cursor=pointer]:
+          - /url: /inventory
+          - img [ref=e34]
+          - text: Inventario
+        - link "Gastos" [ref=e38] [cursor=pointer]:
+          - /url: /expenses
+          - img [ref=e39]
+          - text: Gastos
+        - link "Eventos" [ref=e42] [cursor=pointer]:
+          - /url: /events
+          - img [ref=e43]
+          - text: Eventos
+        - link "Configuración" [ref=e46] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e47]
+          - text: Configuración
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e52]: A
+          - generic [ref=e53]:
+            - paragraph [ref=e120]: Administrador
+            - paragraph [ref=e54]: admin
+        - button "Cerrar Sesión" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - text: Cerrar Sesión
+    - generic [ref=e59]:
+      - banner [ref=e60]:
+        - button [ref=e61] [cursor=pointer]:
+          - img [ref=e62]
+        - heading "Reservaciones" [level=1] [ref=e64]
+        - generic [ref=e66]: mar, 14 de abr de 2026
+      - main [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - heading "RESERVACIONES" [level=1] [ref=e71]
+              - paragraph [ref=e72]: ADMINISTRA LAS RESERVACIONES DEL CENTRO DE EVENTOS
+            - button "NUEVA RESERVACION" [ref=e73] [cursor=pointer]:
+              - img [ref=e74]
+              - text: NUEVA RESERVACION
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - button [ref=e78] [cursor=pointer]:
+                  - img [ref=e79]
+                - generic [ref=e81]: Abril 2026
+                - button [ref=e82] [cursor=pointer]:
+                  - img [ref=e83]
+              - generic [ref=e85]:
+                - button "LISTA" [ref=e86] [cursor=pointer]
+                - button "MES" [active] [ref=e87] [cursor=pointer]
+                - button "SEMANA" [ref=e88] [cursor=pointer]
+            - generic [ref=e90]:
+              - generic [ref=e195]: Dom
+              - generic [ref=e196]: Lun
+              - generic [ref=e197]: Mar
+              - generic [ref=e198]: Mie
+              - generic [ref=e199]: Jue
+              - generic [ref=e200]: Vie
+              - generic [ref=e201]: Sab
+              - generic [ref=e208]: "1"
+              - generic [ref=e213]: "2"
+              - generic [ref=e218]: "3"
+              - generic [ref=e223]: "4"
+              - generic [ref=e228]: "5"
+              - generic [ref=e233]: "6"
+              - generic [ref=e238]: "7"
+              - generic [ref=e243]: "8"
+              - generic [ref=e246]:
+                - generic [ref=e248]: "9"
+                - generic [ref=e249]:
+                  - generic "pepito — Josefa" [ref=e251] [cursor=pointer]
+                  - generic [ref=e252]: pepito
+              - generic [ref=e254]:
+                - generic [ref=e256]: "10"
+                - generic "pepito — Josefa" [ref=e259] [cursor=pointer]
+              - generic [ref=e261]:
+                - generic [ref=e263]: "11"
+                - generic "pepito — Josefa" [ref=e266] [cursor=pointer]
+              - generic [ref=e268]:
+                - generic [ref=e270]: "12"
+                - generic [ref=e271]:
+                  - generic "pepito — Juda" [ref=e273] [cursor=pointer]
+                  - generic [ref=e274]: pepito
+              - generic [ref=e276]:
+                - generic [ref=e278]: "13"
+                - generic "pepito — Juda" [ref=e281] [cursor=pointer]
+              - generic [ref=e283]:
+                - generic [ref=e285]: "14"
+                - generic "pepito — Juda" [ref=e289] [cursor=pointer]
+              - generic [ref=e291]:
+                - generic [ref=e293]: "15"
+                - generic [ref=e294]:
+                  - generic "pepito — Hab 104 - Piso undefined" [ref=e296] [cursor=pointer]
+                  - generic [ref=e297]: pepito
+              - generic [ref=e299]:
+                - generic [ref=e301]: "16"
+                - generic [ref=e302]:
+                  - generic "pepito — Hab 104 - Piso undefined" [ref=e304] [cursor=pointer]
+                  - generic "Actualizado_1776192018245_3pbq7 — Bautisterio" [ref=e306] [cursor=pointer]
+              - generic [ref=e308]:
+                - generic [ref=e310]: "17"
+                - generic "Actualizado_1776192018245_3pbq7 — Bautisterio" [ref=e313] [cursor=pointer]
+              - generic [ref=e315]:
+                - generic [ref=e317]: "18"
+                - generic "Actualizado_1776192018245_3pbq7 — Bautisterio" [ref=e320] [cursor=pointer]
+              - generic [ref=e322]:
+                - generic [ref=e324]: "19"
+                - generic "Actualizado_1776192018245_3pbq7 — Bautisterio" [ref=e327] [cursor=pointer]
+              - generic [ref=e329]:
+                - generic [ref=e331]: "20"
+                - generic [ref=e332]:
+                  - generic "Actualizado_1776192018245_3pbq7 — Bautisterio" [ref=e334] [cursor=pointer]
+                  - generic "Cliente Particular - Editado — Josefa" [ref=e336] [cursor=pointer]
+              - generic [ref=e338]:
+                - generic [ref=e340]: "21"
+                - generic [ref=e341]:
+                  - generic "Actualizado_1776192018245_3pbq7 — Bautisterio" [ref=e343] [cursor=pointer]
+                  - generic "Cliente Particular - Editado — Josefa" [ref=e345] [cursor=pointer]
+              - generic [ref=e349]: "22"
+              - generic [ref=e354]: "23"
+              - generic [ref=e357]:
+                - generic [ref=e359]: "24"
+                - generic [ref=e360]:
+                  - generic "pepito — Rancho 4" [ref=e362] [cursor=pointer]
+                  - generic [ref=e363]: pepito
+              - generic [ref=e365]:
+                - generic [ref=e367]: "25"
+                - generic "pepito — Rancho 4" [ref=e370] [cursor=pointer]
+              - generic [ref=e372]:
+                - generic [ref=e374]: "26"
+                - generic "pepito — Rancho 4" [ref=e377] [cursor=pointer]
+              - generic [ref=e379]:
+                - generic [ref=e381]: "27"
+                - generic [ref=e382]:
+                  - generic "pepito — Rancho 4" [ref=e384] [cursor=pointer]
+                  - generic "Cliente Particular - Editado — Josefa" [ref=e386] [cursor=pointer]
+              - generic [ref=e388]:
+                - generic [ref=e390]: "28"
+                - generic [ref=e391]:
+                  - generic "pepito — Rancho 4" [ref=e393] [cursor=pointer]
+                  - generic "Cliente Particular - Editado — Josefa" [ref=e395] [cursor=pointer]
+              - generic [ref=e399]: "29"
+              - generic [ref=e404]: "30"
+          - generic [ref=e92]:
+            - generic [ref=e93]: ESTADOS DE RESERVACION
+            - generic [ref=e94]:
+              - generic [ref=e97]: Cotizado
+              - generic [ref=e100]: Anticipo
+              - generic [ref=e103]: Depósito
+              - generic [ref=e106]: Saldo
+              - generic [ref=e109]: Total Cancelado
+              - generic [ref=e112]: En Ejecución
+              - generic [ref=e115]: Finalizado
+              - generic [ref=e118]: Finalizado con Cobro
+  - alert [ref=e119]

@@ -1,0 +1,93 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - link "VM Villas Mayen" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: VM
+          - generic [ref=e7]: Villas Mayen
+        - button [ref=e8] [cursor=pointer]:
+          - img [ref=e9]
+      - navigation [ref=e12]:
+        - generic [ref=e13]: Navegación
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /
+          - img [ref=e15]
+          - text: Dashboard
+        - link "Reservaciones" [ref=e20] [cursor=pointer]:
+          - /url: /reservations
+          - img [ref=e21]
+          - text: Reservaciones
+        - link "Clientes" [ref=e23] [cursor=pointer]:
+          - /url: /clients
+          - img [ref=e24]
+          - text: Clientes
+        - link "Cotizaciones" [ref=e29] [cursor=pointer]:
+          - /url: /quotes
+          - img [ref=e30]
+          - text: Cotizaciones
+        - link "Inventario" [ref=e33] [cursor=pointer]:
+          - /url: /inventory
+          - img [ref=e34]
+          - text: Inventario
+        - link "Gastos" [ref=e38] [cursor=pointer]:
+          - /url: /expenses
+          - img [ref=e39]
+          - text: Gastos
+        - link "Eventos" [ref=e42] [cursor=pointer]:
+          - /url: /events
+          - img [ref=e43]
+          - text: Eventos
+        - link "Configuración" [ref=e46] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e47]
+          - text: Configuración
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e52]: U
+          - generic [ref=e53]:
+            - paragraph
+            - paragraph [ref=e54]: usuario
+        - button "Cerrar Sesión" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - text: Cerrar Sesión
+    - generic [ref=e59]:
+      - banner [ref=e60]:
+        - button [ref=e61] [cursor=pointer]:
+          - img [ref=e62]
+        - heading "Reservaciones" [level=1] [ref=e64]
+        - generic [ref=e66]: mar, 14 de abr de 2026
+      - main [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - heading "RESERVACIONES" [level=1] [ref=e71]
+              - paragraph [ref=e72]: ADMINISTRA LAS RESERVACIONES DEL CENTRO DE EVENTOS
+            - button "NUEVA RESERVACION" [ref=e73] [cursor=pointer]:
+              - img [ref=e74]
+              - text: NUEVA RESERVACION
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - button [ref=e78] [cursor=pointer]:
+                  - img [ref=e79]
+                - generic [ref=e81]: 12 – 18 de Abril 2026
+                - button [ref=e82] [cursor=pointer]:
+                  - img [ref=e83]
+              - generic [ref=e85]:
+                - button "LISTA" [ref=e86] [cursor=pointer]
+                - button "MES" [ref=e87] [cursor=pointer]
+                - button "SEMANA" [ref=e88] [cursor=pointer]
+            - generic [ref=e91]: "[LOADING...]"
+          - generic [ref=e92]:
+            - generic [ref=e93]: ESTADOS DE RESERVACION
+            - generic [ref=e94]:
+              - generic [ref=e97]: Cotizado
+              - generic [ref=e100]: Anticipo
+              - generic [ref=e103]: Depósito
+              - generic [ref=e106]: Saldo
+              - generic [ref=e109]: Total Cancelado
+              - generic [ref=e112]: En Ejecución
+              - generic [ref=e115]: Finalizado
+              - generic [ref=e118]: Finalizado con Cobro
+  - alert [ref=e119]

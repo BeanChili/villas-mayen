@@ -1,0 +1,137 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e16]
+  - generic [ref=e17]:
+    - complementary [ref=e18]:
+      - generic [ref=e19]:
+        - link "V Villas Mayen" [ref=e20] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e22]: V
+          - generic [ref=e23]: Villas Mayen
+        - button [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+      - navigation [ref=e28]:
+        - link "Dashboard" [ref=e29] [cursor=pointer]:
+          - /url: /
+          - img [ref=e30]
+          - text: Dashboard
+        - link "Reservaciones" [ref=e35] [cursor=pointer]:
+          - /url: /reservations
+          - img [ref=e36]
+          - text: Reservaciones
+        - link "Clientes" [ref=e38] [cursor=pointer]:
+          - /url: /clients
+          - img [ref=e39]
+          - text: Clientes
+        - link "Cotizaciones" [ref=e44] [cursor=pointer]:
+          - /url: /quotes
+          - img [ref=e45]
+          - text: Cotizaciones
+        - link "Inventario" [ref=e48] [cursor=pointer]:
+          - /url: /inventory
+          - img [ref=e49]
+          - text: Inventario
+        - link "Gastos" [ref=e53] [cursor=pointer]:
+          - /url: /expenses
+          - img [ref=e54]
+          - text: Gastos
+        - link "Eventos" [ref=e57] [cursor=pointer]:
+          - /url: /events
+          - img [ref=e58]
+          - text: Eventos
+        - link "Configuración" [ref=e61] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e62]
+          - text: Configuración
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - generic [ref=e67]: A
+          - generic [ref=e68]:
+            - paragraph [ref=e69]: Administrador
+            - paragraph [ref=e70]: admin
+        - button "Cerrar Sesión" [ref=e71] [cursor=pointer]:
+          - img [ref=e72]
+          - text: Cerrar Sesión
+    - generic [ref=e75]:
+      - banner [ref=e76]:
+        - button [ref=e77] [cursor=pointer]:
+          - img [ref=e78]
+        - heading "Dashboard" [level=1] [ref=e80]
+        - generic [ref=e82]: martes, 14 de abril de 2026
+      - main [ref=e83]:
+        - generic [ref=e84]:
+          - generic [ref=e85]:
+            - generic [ref=e86]:
+              - heading "Bienvenido, Administrador" [level=2] [ref=e87]
+              - paragraph [ref=e88]: Aquí está el resumen de tu centro de eventos
+            - generic [ref=e89]:
+              - paragraph [ref=e90]: Rol
+              - paragraph [ref=e91]: admin
+          - generic [ref=e92]:
+            - link "Reservaciones del Mes 7" [ref=e93] [cursor=pointer]:
+              - /url: /reservations
+              - generic [ref=e96]:
+                - generic [ref=e97]:
+                  - paragraph [ref=e98]: Reservaciones del Mes
+                  - paragraph [ref=e99]: "7"
+                - img [ref=e101]
+            - link "Eventos Hoy 0" [ref=e103] [cursor=pointer]:
+              - /url: /reservations
+              - generic [ref=e106]:
+                - generic [ref=e107]:
+                  - paragraph [ref=e108]: Eventos Hoy
+                  - paragraph [ref=e109]: "0"
+                - img [ref=e111]
+            - link "Clientes Nuevos 601" [ref=e114] [cursor=pointer]:
+              - /url: /clients
+              - generic [ref=e117]:
+                - generic [ref=e118]:
+                  - paragraph [ref=e119]: Clientes Nuevos
+                  - paragraph [ref=e120]: "601"
+                - img [ref=e122]
+            - link "Gastos del Mes $19,900" [ref=e127] [cursor=pointer]:
+              - /url: /expenses
+              - generic [ref=e130]:
+                - generic [ref=e131]:
+                  - paragraph [ref=e132]: Gastos del Mes
+                  - paragraph [ref=e133]: $19,900
+                - img [ref=e135]
+          - generic [ref=e138]:
+            - heading "Próximos Eventos" [level=3] [ref=e140]
+            - generic [ref=e142]:
+              - generic [ref=e143]:
+                - generic [ref=e146]:
+                  - paragraph [ref=e147]: pepito
+                  - paragraph [ref=e148]: Hab 104 - Piso undefined
+                - generic [ref=e149]:
+                  - paragraph [ref=e150]: 15 de abril de 2026
+                  - paragraph [ref=e151]: "[\"MANANA\"]"
+              - generic [ref=e152]:
+                - generic [ref=e155]:
+                  - paragraph [ref=e156]: Actualizado_1776192018245_3pbq7
+                  - paragraph [ref=e157]: Bautisterio
+                - generic [ref=e158]:
+                  - paragraph [ref=e159]: 16 de abril de 2026
+                  - paragraph [ref=e160]: "[\"TARDE\"]"
+              - generic [ref=e161]:
+                - generic [ref=e164]:
+                  - paragraph [ref=e165]: Cliente Particular - Editado
+                  - paragraph [ref=e166]: Josefa
+                - generic [ref=e167]:
+                  - paragraph [ref=e168]: 20 de abril de 2026
+                  - paragraph [ref=e169]: "[\"MANANA\"]"
+          - generic [ref=e170]:
+            - link "Ver Reservaciones" [ref=e171] [cursor=pointer]:
+              - /url: /reservations
+              - generic [ref=e173]:
+                - img [ref=e174]
+                - paragraph [ref=e176]: Ver Reservaciones
+            - link "Ver Clientes" [ref=e177] [cursor=pointer]:
+              - /url: /clients
+              - generic [ref=e179]:
+                - img [ref=e180]
+                - paragraph [ref=e185]: Ver Clientes
+            - link "Ver Cotizaciones" [ref=e186] [cursor=pointer]:
+              - /url: /quotes
+              - generic [ref=e188]:
+                - img [ref=e189]
+                - paragraph [ref=e193]: Ver Cotizaciones

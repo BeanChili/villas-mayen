@@ -1,0 +1,355 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  username  String   @unique
+  password  String
+  email     String?
+  phone     String?
+  role      String   @default("VISUAL") // ADMIN, RECEPCIONISTA, FINANZAS, ALMACEN, ENCARGADO_EVENTO, USUARIO_SISTEMA, VISUAL
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  reservations Reservation[]
+}
+
+// Áreas Libres
+model FreeArea {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  capacity    Int?
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Comedores
+model DiningRoom {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  capacity    Int?
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Salones
+model Hall {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  capacity    Int?
+  type        String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Edificios
+model Building {
+  id      String   @id @default(cuid())
+  name    String   @unique // Belén, Bethel
+  active  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  floors  Floor[]
+}
+
+// Pisos/Niveles
+model Floor {
+  id          String   @id @default(cuid())
+  buildingId  String
+  building    Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  level       Int      // 1 o 2
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  rooms       Room[]
+  
+  @@unique([buildingId, level])
+}
+
+// Habitaciones
+model Room {
+  id            String   @id @default(cuid())
+  floorId       String
+  floor         Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  number        String
+  capacity      Int?
+  bedType       String?
+  pricePerNight Float?
+  status        String   @default("DISPONIBLE")
+  photo         String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([floorId, number])
+}
+
+// Jardines
+model Garden {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  capacity    Int?
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Clientes
+model Client {
+  id              String    @id @default(cuid())
+  name            String
+  clientType      String    // PARTICULAR, EMPRESA, IGLESIA, INSTITUCION
+  phone           String?
+  email           String?
+  address         String?
+  rfc             String?
+  observations    String?
+  registrationDate DateTime @default(now())
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  reservations Reservation[]
+  quotes         Quote[]
+}
+
+// Reservaciones
+model Reservation {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id])
+  
+  // Tipo de reservación
+  reservationType String   // EVENTO, HABITACION
+  
+  // Ubicación
+  locationType    String   // FREE_AREA, DINING_ROOM, HALL, ROOM, GARDEN
+  locationId      String
+  locationName    String
+  
+  // Fechas y horarios
+  startDate       DateTime
+  endDate         DateTime
+  startSchedule   String   @default("MANANA") // MANANA | TARDE | NOCHE — horario del día de inicio
+  endSchedule     String   @default("NOCHE")  // MANANA | TARDE | NOCHE — horario del día de fin
+  schedules       String   // JSON array legacy: ["MANANA","TARDE"] — mantener para compatibilidad
+  
+  // Estado de pago
+  paymentStatus   String   @default("COTIZADO") // COTIZADO, ANTICIPO, DEPOSITO, SALDO, TOTAL_CANCELADO
+  totalAmount     Float    @default(0)
+  paidAmount      Float    @default(0)
+  pendingAmount   Float    @default(0)
+  
+  // Estado de reservación
+  status          String   @default("COTIZADO") // COTIZADO, ANTICIPO, DEPOSITO, SALDO, TOTAL_CANCELADO, EN_EJECUCION, FINALIZADO, FINALIZADO_COBRO
+  
+  // Notas
+  observations    String?
+  
+  // Usuario que creó
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id])
+  
+  // Cierre de evento
+  eventClosing    EventClosing?
+  
+  // Quotes relacionadas
+  quote           Quote?
+  
+  // Gastos relacionados
+  expenses        Expense[]
+  
+  // Fechas
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Catálogo de Productos
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  category      String   // COMIDA_MENU, MOBILIARIO, ADORNOS_DECORACION, SERVICIOS_ADICIONALES
+  unitPrice     Float
+  description   String?
+  photo         String?
+  available     Boolean  @default(true)
+  unitMeasure   String   // PIEZA, PERSONA, HORA, EVENTO
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  quoteItems    QuoteItem[]
+
+  @@unique([name, category])
+}
+
+// Cotizaciones
+model Quote {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id])
+  
+  // Datos del evento
+  eventDate       DateTime
+  locationType    String   // FREE_AREA, DINING_ROOM, HALL, ROOM, GARDEN
+  locationId      String
+  locationName    String
+  schedules       String   // JSON array: ["MANANA","TARDE"]
+  
+  // Estado
+  status          String   @default("BORRADOR") // BORRADOR, ENVIADA, APROBADA, RECHAZADA
+  
+  // Notas
+  notes           String?
+  decorationPhotos String?  // JSON array de rutas
+  
+  // Total
+  totalAmount     Float    @default(0)
+  
+  // Reservation relacionada
+  reservationId   String?  @unique
+  reservation     Reservation? @relation(fields: [reservationId], references: [id])
+  
+  // Items
+  items           QuoteItem[]
+  workOrder       WorkOrder?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model QuoteItem {
+  id          String   @id @default(cuid())
+  quoteId     String
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  
+  // Si es mobiliario del inventario
+  furnitureId String?
+  furniture   Furniture? @relation(fields: [furnitureId], references: [id])
+  
+  name        String
+  category    String   // COMIDA_MENU, MOBILIARIO, ADORNOS_DECORACION, SERVICIOS_ADICIONALES
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+  
+  notes       String?
+}
+
+// Orden de Trabajo
+model WorkOrder {
+  id          String    @id @default(cuid())
+  quoteId     String    @unique
+  quote       Quote     @relation(fields: [quoteId], references: [id])
+  
+  // items removed - QuoteItem already references WorkOrder through quote relationship
+  totalAmount Float
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Mobiliario/Inventario
+model Furniture {
+  id                String   @id @default(cuid())
+  inventoryNumber   String   @unique
+  name              String
+  category          String   // SILLAS, MESAS, MANTELES, VAJILLA, CRISTALERIA, CUBERTERIA, DECORACION, EQUIPOS_SONIDO, ILUMINACION, CARPAS, OTROS
+  purchaseValue     Float
+  depreciationRate  Float    // Porcentaje anual, ej: 10
+  currentValue      Float    // Calculado automáticamente
+  status            String   @default("BUENO") // BUENO, REGULAR, DANADO, DADO_BAJA
+  photo             String?
+  purchaseDate      DateTime?
+  location          String?
+  observations      String?
+  
+  // Historial de uso
+  assignedEvents    EventClosingItem[]
+  quoteItems        QuoteItem[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Gastos
+model Expense {
+  id            String   @id @default(cuid())
+  date          DateTime
+  category      String   // MANTENIMIENTO, SERVICIOS, SUELDOS, INSUMOS, DECORACION, TRANSPORTE, OTROS
+  description   String
+  amount        Float
+  receiptPhoto  String?
+  relatedEventId String?
+  relatedEvent  Reservation? @relation(fields: [relatedEventId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Cierre de Eventos
+model EventClosing {
+  id            String   @id @default(cuid())
+  reservationId String   @unique
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+  
+  closingDate   DateTime
+  returnStatus  String   // COMPLETO, CON_DANOS, CON_PERDIDAS
+  observations  String?
+  damageCost    Float    @default(0)
+  lossCost      Float    @default(0)
+  
+  items         EventClosingItem[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model EventClosingItem {
+  id              String   @id @default(cuid())
+  eventClosingId  String
+  eventClosing    EventClosing @relation(fields: [eventClosingId], references: [id], onDelete: Cascade)
+  furnitureId     String
+  furniture       Furniture @relation(fields: [furnitureId], references: [id])
+  
+  returnStatus    String   // RETORNADO_OK, RETORNADO_DANADO, NO_RETORNADO
+  damageDescription String?
+  damagePhoto     String?
+  repairCost      Float    @default(0)
+  notes           String?
+}
+
+// Permisos por rol
+model Permission {
+  id          String   @id @default(cuid())
+  role        String
+  module      String
+  canCreate   Boolean  @default(false)
+  canRead     Boolean  @default(false)
+  canUpdate   Boolean  @default(false)
+  canDelete   Boolean  @default(false)
+  canApprove  Boolean  @default(false)
+  
+  @@unique([role, module])
+}
