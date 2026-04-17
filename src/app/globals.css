@@ -4,52 +4,53 @@
 
 @layer base {
   :root {
-    /* ─── Warm Terracotta Palette ─────────────────────────────────── */
-    /* Primary: Terracotta */
-    --primary: 16 70% 50%;
-    --primary-foreground: 40 30% 96%;
+    /* ─── Villas Mayen Green Palette ──────────────────────────────── */
+    /* Primary: Brand green #3b9637 */
+    --primary: 118 46% 40%;
+    --primary-foreground: 0 0% 98%;
 
-    /* Surfaces: Warm cream, never pure white */
-    --background: 40 30% 97%;
-    --foreground: 25 20% 18%;
+    /* Surfaces: Clean neutral with subtle green undertone */
+    --background: 120 8% 97%;
+    --foreground: 120 8% 13%;
 
-    /* Cards: Slightly warmer than bg */
-    --card: 38 35% 98%;
-    --card-foreground: 25 20% 18%;
+    /* Cards */
+    --card: 0 0% 100%;
+    --card-foreground: 120 8% 13%;
 
     /* Popover */
-    --popover: 38 35% 98%;
-    --popover-foreground: 25 20% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 8% 13%;
 
-    /* Secondary: Warm stone */
-    --secondary: 35 18% 92%;
-    --secondary-foreground: 25 20% 25%;
+    /* Secondary: Light green-tinted stone */
+    --secondary: 120 10% 91%;
+    --secondary-foreground: 120 8% 22%;
 
-    /* Muted: Soft warm */
-    --muted: 35 15% 93%;
-    --muted-foreground: 25 8% 50%;
+    /* Muted: Soft neutral */
+    --muted: 120 6% 93%;
+    --muted-foreground: 120 4% 48%;
 
-    /* Accent: Lighter terracotta wash */
-    --accent: 18 40% 93%;
-    --accent-foreground: 16 60% 38%;
+    /* Accent: Light green wash */
+    --accent: 118 35% 92%;
+    --accent-foreground: 118 46% 30%;
 
-    /* Destructive: Burnt sienna */
-    --destructive: 8 65% 48%;
-    --destructive-foreground: 40 30% 96%;
+    /* Destructive: Red */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
 
-    /* Borders: Warm and soft */
-    --border: 32 18% 88%;
-    --input: 32 18% 88%;
-    --ring: 16 70% 50%;
+    /* Borders */
+    --border: 120 8% 87%;
+    --input: 120 8% 87%;
+    --ring: 118 46% 40%;
 
     --radius: 0.75rem;
 
     /* ─── Custom semantic tokens ──────────────────────────────────── */
-    --vm-terracotta: 16 70% 50%;
-    --vm-terracotta-light: 18 50% 94%;
-    --vm-cream: 40 30% 97%;
-    --vm-charcoal: 25 20% 18%;
-    --vm-stone: 35 15% 93%;
+    --vm-green: 118 46% 40%;
+    --vm-green-light: 118 40% 93%;
+    --vm-green-dark: 118 50% 28%;
+    --vm-white: 120 8% 97%;
+    --vm-charcoal: 120 8% 13%;
+    --vm-stone: 120 6% 93%;
     --vm-sage: 145 30% 42%;
     --vm-sage-light: 145 25% 92%;
     --vm-amber: 38 85% 55%;
@@ -69,25 +70,25 @@
   }
 
   .dark {
-    --background: 25 20% 10%;
-    --foreground: 38 20% 90%;
-    --card: 25 18% 12%;
-    --card-foreground: 38 20% 90%;
-    --popover: 25 18% 12%;
-    --popover-foreground: 38 20% 90%;
-    --primary: 16 65% 55%;
-    --primary-foreground: 25 20% 10%;
-    --secondary: 25 12% 18%;
-    --secondary-foreground: 38 20% 85%;
-    --muted: 25 12% 18%;
-    --muted-foreground: 30 10% 55%;
-    --accent: 18 30% 18%;
-    --accent-foreground: 16 50% 70%;
-    --destructive: 8 55% 45%;
-    --destructive-foreground: 38 20% 90%;
-    --border: 25 12% 20%;
-    --input: 25 12% 20%;
-    --ring: 16 65% 55%;
+    --background: 120 8% 9%;
+    --foreground: 120 5% 90%;
+    --card: 120 7% 11%;
+    --card-foreground: 120 5% 90%;
+    --popover: 120 7% 11%;
+    --popover-foreground: 120 5% 90%;
+    --primary: 118 46% 48%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 120 8% 17%;
+    --secondary-foreground: 120 5% 82%;
+    --muted: 120 8% 17%;
+    --muted-foreground: 120 4% 54%;
+    --accent: 118 25% 17%;
+    --accent-foreground: 118 40% 68%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 120 8% 19%;
+    --input: 120 8% 19%;
+    --ring: 118 46% 48%;
   }
 }
 
@@ -118,7 +119,7 @@
       linear-gradient(
         to bottom,
         hsl(var(--card)) 0%,
-        hsl(35 20% 96%) 100%
+        hsl(120 10% 96%) 100%
       );
   }
 

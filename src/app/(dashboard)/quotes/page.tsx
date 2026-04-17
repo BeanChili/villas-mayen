@@ -320,7 +320,7 @@ export default function QuotesPage() {
                         {quote.client.name}
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">
-                        {new Date(quote.eventDate).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
+                        {new Date(quote.eventDate).toLocaleDateString("es-GT", { day: "numeric", month: "short", year: "numeric" })}
                       </td>
                       <td className="p-3 text-muted-foreground max-w-[120px] truncate">{quote.locationName}</td>
                       <td className="p-3 text-right font-mono font-medium text-foreground">{formatCurrency(quote.totalAmount)}</td>
@@ -333,7 +333,7 @@ export default function QuotesPage() {
                         </span>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">
-                        {new Date(quote.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                        {new Date(quote.createdAt).toLocaleDateString("es-GT", { day: "numeric", month: "short" })}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1">
@@ -629,7 +629,7 @@ export default function QuotesPage() {
                 <div className="vm-info-block">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Fecha Evento</p>
                   <p className="text-sm font-medium text-foreground">
-                    {new Date(selectedQuote.eventDate).toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                    {new Date(selectedQuote.eventDate).toLocaleDateString("es-GT", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                   </p>
                 </div>
                 <div className="vm-info-block">

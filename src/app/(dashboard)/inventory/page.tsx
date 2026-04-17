@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -216,7 +217,7 @@ export default function InventoryPage() {
               <Package className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">${totalValue.toLocaleString("es-MX")}</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalValue)}</p>
               <p className="text-sm text-gray-500">Valor Total</p>
             </div>
           </CardContent>
@@ -282,8 +283,8 @@ export default function InventoryPage() {
                           {furnitureCategoryLabels[item.category as keyof typeof furnitureCategoryLabels] || item.category}
                         </Badge>
                       </td>
-                      <td className="p-3">${item.purchaseValue.toLocaleString("es-MX")}</td>
-                      <td className="p-3 font-medium">${item.currentValue.toLocaleString("es-MX")}</td>
+                      <td className="p-3">{formatCurrency(item.purchaseValue)}</td>
+                      <td className="p-3 font-medium">{formatCurrency(item.currentValue)}</td>
                       <td className="p-3">
                         <Badge 
                           variant={item.status === "BUENO" ? "default" : item.status === "DANADO" ? "destructive" : "secondary"}

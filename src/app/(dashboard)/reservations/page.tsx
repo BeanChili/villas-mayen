@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { statusLabels } from "@/types"
 import { formatCurrency, getStatusColor, getStatusLabel } from "@/lib/utils"
-import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, Check } from "lucide-react"
+import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, Check, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ─── tipos locales ────────────────────────────────────────────────────────────
@@ -249,7 +249,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         <div className="vm-info-block">
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Inicio</p>
           <p className="text-sm font-medium text-foreground">
-            {parseDate(reservation.startDate).toLocaleDateString("es-MX", {
+            {parseDate(reservation.startDate).toLocaleDateString("es-GT", {
               weekday: "short", day: "numeric", month: "short"
             })}
           </p>
@@ -263,7 +263,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         <div className="vm-info-block">
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Fin</p>
           <p className="text-sm font-medium text-foreground">
-            {parseDate(reservation.endDate).toLocaleDateString("es-MX", {
+            {parseDate(reservation.endDate).toLocaleDateString("es-GT", {
               weekday: "short", day: "numeric", month: "short"
             })}
           </p>
@@ -411,7 +411,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
                     )}
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
-                    {new Date(p.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                    {new Date(p.createdAt).toLocaleDateString("es-GT", { day: "numeric", month: "short" })}
                   </span>
                 </div>
               ))}
@@ -923,9 +923,9 @@ export default function ReservationsPage() {
                     <td className="p-3 font-medium text-foreground max-w-[160px] truncate" title={res.client.name}>{res.client.name}</td>
                     <td className="p-3 text-muted-foreground">{res.locationName}</td>
                     <td className="p-3 text-muted-foreground text-xs">
-                      {parseDate(res.startDate).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                      {parseDate(res.startDate).toLocaleDateString("es-GT", { day: "numeric", month: "short" })}
                       {" — "}
-                      {parseDate(res.endDate).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                      {parseDate(res.endDate).toLocaleDateString("es-GT", { day: "numeric", month: "short" })}
                     </td>
                     <td className="p-3">
                       <span
@@ -978,11 +978,19 @@ export default function ReservationsPage() {
             Administra las reservaciones del centro de eventos
           </p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shrink-0">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nueva Reservación</span>
-          <span className="sm:hidden">Nueva</span>
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <a href="/menu.pdf" target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className="gap-2">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Ver Menú</span>
+            </Button>
+          </a>
+          <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nueva Reservación</span>
+            <span className="sm:hidden">Nueva</span>
+          </Button>
+        </div>
       </div>
 
       {/* Calendar section — no wrapping Card, just a bordered container */}
@@ -1268,9 +1276,9 @@ export default function ReservationsPage() {
             {formData.startDate && formData.endDate && (
               <div className="text-xs p-3 bg-primary/5 text-primary rounded-lg border border-primary/10">
                 <span className="font-semibold">Rango: </span>
-                {new Date(formData.startDate + "T12:00").toLocaleDateString("es-MX")} {SCHEDULE_LABELS[formData.startSchedule]}
+                {new Date(formData.startDate + "T12:00").toLocaleDateString("es-GT")} {SCHEDULE_LABELS[formData.startSchedule]}
                 {" → "}
-                {new Date(formData.endDate + "T12:00").toLocaleDateString("es-MX")} {SCHEDULE_LABELS[formData.endSchedule]}
+                {new Date(formData.endDate + "T12:00").toLocaleDateString("es-GT")} {SCHEDULE_LABELS[formData.endSchedule]}
               </div>
             )}
 

@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar, Users, Package, Wallet, Clock, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { formatDate, getStatusColor, parseSchedule } from "@/lib/utils"
+import { formatCurrency, formatDate, getStatusColor, parseSchedule } from "@/lib/utils"
 
 // Short schedule labels for display
 const SCHEDULE_SHORT: Record<string, string> = {
@@ -65,7 +65,7 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
     },
     {
       title: "Gastos del Mes",
-      value: `$${data.expensesThisMonth.toLocaleString("es-MX")}`,
+      value: formatCurrency(data.expensesThisMonth),
       icon: Wallet,
       color: "text-orange-600",
       bgColor: "bg-orange-50",

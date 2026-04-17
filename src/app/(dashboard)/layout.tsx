@@ -58,12 +58,11 @@ export default function DashboardLayout({
       >
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-border">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-display text-sm">V</span>
-            </div>
+          <Link href="/" className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Casa Villas Magen" width={32} height={32} className="rounded-md object-contain" />
             <span className="font-display text-lg text-foreground tracking-tight">
-              Villas Mayen
+              Casa Villas Magen
             </span>
           </Link>
           <button
@@ -143,7 +142,7 @@ export default function DashboardLayout({
 
           <div className="flex items-center gap-4">
             <span className="text-xs text-muted-foreground font-medium tracking-wide">
-              {new Date().toLocaleDateString("es-MX", {
+              {new Date().toLocaleDateString("es-GT", {
                 weekday: "long",
                 day: "numeric",
                 month: "long",

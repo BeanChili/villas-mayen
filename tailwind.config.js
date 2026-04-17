@@ -56,9 +56,10 @@ module.exports = {
         },
         /* Semantic Villas Mayen colors */
         vm: {
-          terracotta: "hsl(var(--vm-terracotta))",
-          "terracotta-light": "hsl(var(--vm-terracotta-light))",
-          cream: "hsl(var(--vm-cream))",
+          green: "hsl(var(--vm-green))",
+          "green-light": "hsl(var(--vm-green-light))",
+          "green-dark": "hsl(var(--vm-green-dark))",
+          white: "hsl(var(--vm-white))",
           charcoal: "hsl(var(--vm-charcoal))",
           stone: "hsl(var(--vm-stone))",
           sage: "hsl(var(--vm-sage))",

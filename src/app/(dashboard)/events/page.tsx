@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -261,8 +262,8 @@ export default function EventsPage() {
                     <p className="font-medium">{reservation.client.name}</p>
                     <p className="text-sm text-gray-500">{reservation.locationName}</p>
                     <p className="text-xs text-gray-400">
-                      {new Date(reservation.startDate).toLocaleDateString("es-MX")} -{" "}
-                      {new Date(reservation.endDate).toLocaleDateString("es-MX")}
+                      {new Date(reservation.startDate).toLocaleDateString("es-GT")} -{" "}
+                      {new Date(reservation.endDate).toLocaleDateString("es-GT")}
                     </p>
                   </div>
                   <Button onClick={() => openClosingDialog(reservation)}>
@@ -301,7 +302,7 @@ export default function EventsPage() {
                   {closings.map(closing => (
                     <tr key={closing.id} className="border-b hover:bg-gray-50">
                       <td className="p-3">
-                        {new Date(closing.closingDate).toLocaleDateString("es-MX")}
+                        {new Date(closing.closingDate).toLocaleDateString("es-GT")}
                       </td>
                       <td className="p-3">
                         <Badge 
@@ -313,8 +314,8 @@ export default function EventsPage() {
                           {returnStatusLabels[closing.returnStatus as keyof typeof returnStatusLabels] || closing.returnStatus}
                         </Badge>
                       </td>
-                      <td className="p-3">${closing.damageCost.toLocaleString("es-MX")}</td>
-                      <td className="p-3">${closing.lossCost.toLocaleString("es-MX")}</td>
+                      <td className="p-3">{formatCurrency(closing.damageCost)}</td>
+                      <td className="p-3">{formatCurrency(closing.lossCost)}</td>
                       <td className="p-3 text-gray-600">{closing.observations || "-"}</td>
                     </tr>
                   ))}

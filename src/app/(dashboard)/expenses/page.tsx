@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -181,7 +182,7 @@ export default function ExpensesPage() {
               <Wallet className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">${totalExpenses.toLocaleString("es-MX")}</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalExpenses)}</p>
               <p className="text-sm text-gray-500">Total Gastos</p>
             </div>
           </CardContent>
@@ -192,7 +193,7 @@ export default function ExpensesPage() {
               <TrendingDown className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">${thisMonthTotal.toLocaleString("es-MX")}</p>
+              <p className="text-2xl font-bold">{formatCurrency(thisMonthTotal)}</p>
               <p className="text-sm text-gray-500">Este Mes</p>
             </div>
           </CardContent>
@@ -215,7 +216,7 @@ export default function ExpensesPage() {
               {Object.entries(expensesByCategory).slice(0, 3).map(([cat, amount]) => (
                 <div key={cat} className="flex justify-between text-sm">
                   <span className="text-gray-600">{expenseCategoryLabels[cat as keyof typeof expenseCategoryLabels] || cat}</span>
-                  <span className="font-medium">${amount.toLocaleString()}</span>
+                  <span className="font-medium">{formatCurrency(amount)}</span>
                 </div>
               ))}
             </div>
@@ -248,12 +249,12 @@ export default function ExpensesPage() {
                 <tbody>
                   {filteredExpenses.map(expense => (
                     <tr key={expense.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3">{new Date(expense.date).toLocaleDateString("es-MX")}</td>
+                      <td className="p-3">{new Date(expense.date).toLocaleDateString("es-GT")}</td>
                       <td className="p-3">
                         <span className="text-sm">{expenseCategoryLabels[expense.category as keyof typeof expenseCategoryLabels] || expense.category}</span>
                       </td>
                       <td className="p-3">{expense.description}</td>
-                      <td className="p-3 text-right font-medium">${expense.amount.toLocaleString("es-MX")}</td>
+                      <td className="p-3 text-right font-medium">{formatCurrency(expense.amount)}</td>
                       <td className="p-3">
                         <div className="flex gap-2">
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)}>

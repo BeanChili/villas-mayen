@@ -246,7 +246,7 @@ export default function ClientsPage() {
                       <td className="p-3 text-gray-600">{client.phone || "-"}</td>
                       <td className="p-3 text-gray-600">{client.email || "-"}</td>
                       <td className="p-3 text-gray-600">
-                        {new Date(client.registrationDate).toLocaleDateString("es-MX")}
+                        {new Date(client.registrationDate).toLocaleDateString("es-GT")}
                       </td>
                       <td className="p-3">
                         <div className="flex gap-2">
