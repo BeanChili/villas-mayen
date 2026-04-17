@@ -9,7 +9,9 @@ export const config = {
      * - /_next/static (static files)
      * - /_next/image (image optimization)
      * - /favicon.ico
+     * - /logo.png
+     * - /menu.pdf
      */
-    '/((?!login|api/auth|_next/static|_next/image|favicon\\.ico).*)',
+    '/((?!login|api/auth|_next/static|_next/image|favicon\\.ico|logo\\.png|menu\\.pdf).*)',
   ],
 }
