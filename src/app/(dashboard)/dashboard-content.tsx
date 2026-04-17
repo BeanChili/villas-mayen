@@ -88,7 +88,7 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
       {/* Welcome */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">
             Bienvenido, {user.name || "Usuario"}
           </h2>
           <p className="text-gray-500 mt-1">

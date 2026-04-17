@@ -234,7 +234,7 @@ export default function QuotesPage() {
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="font-display text-3xl text-foreground tracking-tight">Cotizaciones</h1>
+          <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Cotizaciones</h1>
           <p className="text-sm text-muted-foreground mt-1">Administra las cotizaciones de eventos</p>
         </div>
         <Button onClick={() => setIsDialogOpen(true)} className="gap-2">

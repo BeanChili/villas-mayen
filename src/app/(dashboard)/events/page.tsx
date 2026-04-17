@@ -177,7 +177,7 @@ export default function EventsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Eventos</h1>
+          <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Eventos</h1>
           <p className="text-gray-500">Cierre de eventos y control de mobiliario</p>
         </div>
       </div>

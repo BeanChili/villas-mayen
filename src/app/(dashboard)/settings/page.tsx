@@ -151,7 +151,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Configuración</h1>
+          <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Configuración</h1>
           <p className="text-gray-500">Administra usuarios y roles del sistema</p>
         </div>
         <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>

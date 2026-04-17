@@ -81,7 +81,7 @@ function getDateKey(date: Date): string {
 
 function parseDate(str: string | Date): Date {
   if (str instanceof Date) return str
-  if (typeof str === "string" && str.length === 10) {
+  if (str.length === 10) {
     const [y, m, d] = str.split("-").map(Number)
     return new Date(y, m - 1, d)
   }

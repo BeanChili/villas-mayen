@@ -153,7 +153,7 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Inventario</h1>
+          <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Inventario</h1>
           <p className="text-gray-500">Administra el mobiliario del centro de eventos</p>
         </div>
         <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
