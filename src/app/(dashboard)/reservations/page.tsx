@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { statusLabels } from "@/types"
 import { formatCurrency, getStatusColor, getStatusLabel } from "@/lib/utils"
-import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, ChevronDown, Check } from "lucide-react"
+import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ─── tipos locales ────────────────────────────────────────────────────────────
@@ -276,6 +276,85 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         </div>
       </div>
 
+      {/* Actions */}
+      <div className="flex gap-3 flex-wrap items-center">
+        {/* Status dropdown */}
+        {!isCancelled && !isFinalised && (
+          <div className="relative">
+            <button
+              onClick={() => setStatusDropdownOpen(v => !v)}
+              disabled={changingStatus}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150",
+                "border-border bg-card hover:bg-secondary text-foreground",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              {changingStatus
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: getStatusColor(reservation.status) }}
+                  />
+              }
+              <span>{getStatusLabel(reservation.status)}</span>
+              <ChevronRight className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform duration-150", statusDropdownOpen && "rotate-90")} />
+            </button>
+
+            {statusDropdownOpen && (
+              <div className="absolute left-full top-0 ml-1.5 z-50 min-w-[180px] rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
+                <div className="px-3 py-2 border-b border-border">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cambiar estado</p>
+                </div>
+                {RESERVATION_STATUS_FLOW.map((s, idx) => {
+                  const isCurrent = s === reservation.status
+                  const isPast = idx < currentIdx
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => changeStatus(s)}
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors duration-100",
+                        isCurrent
+                          ? "bg-accent text-foreground font-medium"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        isPast && "opacity-50"
+                      )}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: getStatusColor(s) }}
+                      />
+                      <span className="flex-1">{getStatusLabel(s)}</span>
+                      {isCurrent && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                    </button>
+                  )
+                })}
+                <div className="border-t border-border">
+                  <button
+                    onClick={() => { setStatusDropdownOpen(false); cancelReservation() }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/8 transition-colors duration-100"
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0 bg-destructive" />
+                    <span>Cancelar reservación</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cancelled / Finalised state pill */}
+        {(isCancelled || isFinalised) && (
+          <span
+            className="vm-status-badge"
+            style={{ backgroundColor: getStatusColor(reservation.status), color: "#fff" }}
+          >
+            {getStatusLabel(reservation.status)}
+          </span>
+        )}
+      </div>
+
       {/* Payments section */}
       <div className="rounded-xl border border-border p-5 space-y-4 bg-card">
         <div className="flex items-center justify-between">
@@ -375,85 +454,6 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
               </div>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-3 flex-wrap items-center">
-        {/* Status dropdown */}
-        {!isCancelled && !isFinalised && (
-          <div className="relative">
-            <button
-              onClick={() => setStatusDropdownOpen(v => !v)}
-              disabled={changingStatus}
-              className={cn(
-                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150",
-                "border-border bg-card hover:bg-secondary text-foreground",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
-              )}
-            >
-              {changingStatus
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                : <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: getStatusColor(reservation.status) }}
-                  />
-              }
-              <span>{getStatusLabel(reservation.status)}</span>
-              <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform duration-150", statusDropdownOpen && "rotate-180")} />
-            </button>
-
-            {statusDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[180px] rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
-                <div className="px-3 py-2 border-b border-border">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cambiar estado</p>
-                </div>
-                {RESERVATION_STATUS_FLOW.map((s, idx) => {
-                  const isCurrent = s === reservation.status
-                  const isPast = idx < currentIdx
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => changeStatus(s)}
-                      className={cn(
-                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors duration-100",
-                        isCurrent
-                          ? "bg-accent text-foreground font-medium"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                        isPast && "opacity-50"
-                      )}
-                    >
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: getStatusColor(s) }}
-                      />
-                      <span className="flex-1">{getStatusLabel(s)}</span>
-                      {isCurrent && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-                    </button>
-                  )
-                })}
-                <div className="border-t border-border">
-                  <button
-                    onClick={() => { setStatusDropdownOpen(false); cancelReservation() }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/8 transition-colors duration-100"
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0 bg-destructive" />
-                    <span>Cancelar reservación</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Cancelled / Finalised state pill */}
-        {(isCancelled || isFinalised) && (
-          <span
-            className="vm-status-badge"
-            style={{ backgroundColor: getStatusColor(reservation.status), color: "#fff" }}
-          >
-            {getStatusLabel(reservation.status)}
-          </span>
         )}
       </div>
 
