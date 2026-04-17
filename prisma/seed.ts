@@ -243,7 +243,7 @@ async function main() {
 
   for (const product of products) {
     await prisma.product.upsert({
-      where: { id: product.name.substring(0, 8).toLowerCase() + '-' + product.category.toLowerCase() },
+      where: { name_category: { name: product.name, category: product.category } },
       update: {},
       create: product,
     })
