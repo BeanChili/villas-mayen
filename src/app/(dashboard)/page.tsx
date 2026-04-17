@@ -8,8 +8,10 @@ async function getDashboardData() {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
-  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  // Today: full day range (00:00:00 → 23:59:59)
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  const nextWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59)
 
   try {
     const [
@@ -26,19 +28,18 @@ async function getDashboardData() {
           startDate: { gte: startOfMonth, lte: endOfMonth },
         },
       }),
+      // Eventos de hoy: reservaciones cuyo rango de fechas incluye hoy, excluyendo canceladas/finalizadas
       prisma.reservation.count({
         where: {
-          status: "EN_EJECUCION",
-          AND: [
-            { startDate: { lte: new Date() } },
-            { endDate: { gte: new Date() } },
-          ],
+          status: { notIn: ["FINALIZADO", "CANCELADO"] },
+          startDate: { lte: endOfToday },
+          endDate: { gte: startOfToday },
         },
       }),
       prisma.reservation.findMany({
         where: {
-          startDate: { gte: new Date(), lte: nextWeek },
-          status: { notIn: ["FINALIZADO", "FINALIZADO_COBRO"] },
+          startDate: { gte: startOfToday, lte: nextWeek },
+          status: { notIn: ["FINALIZADO", "CANCELADO"] },
         },
         take: 10,
         orderBy: { startDate: "asc" },

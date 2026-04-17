@@ -3,7 +3,23 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar, Users, Package, Wallet, Clock, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { formatDate, getStatusColor } from "@/lib/utils"
+import { formatDate, getStatusColor, parseSchedule } from "@/lib/utils"
+
+// Short schedule labels for display
+const SCHEDULE_SHORT: Record<string, string> = {
+  MANANA: "Mañana",
+  TARDE: "Tarde",
+  NOCHE: "Noche",
+}
+
+function formatSchedules(raw: string): string {
+  try {
+    const arr = parseSchedule(raw)
+    return arr.map(s => SCHEDULE_SHORT[s] ?? s).join(" · ")
+  } catch {
+    return raw
+  }
+}
 
 interface DashboardData {
   reservationsCount: number
@@ -156,7 +172,7 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
                     <p className="text-sm font-medium">
                       {formatDate(event.startDate)}
                     </p>
-                    <p className="text-xs text-gray-500">{event.schedules}</p>
+                    <p className="text-xs text-gray-500">{formatSchedules(event.schedules)}</p>
                   </div>
                 </div>
               ))}
