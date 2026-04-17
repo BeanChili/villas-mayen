@@ -16,6 +16,7 @@ RUN npm ci
 # Copy Prisma schema and source code
 COPY prisma ./prisma/
 COPY src ./src/
+COPY public ./public/
 
 # Copy config files
 COPY next.config.js tailwind.config.js postcss.config.js tsconfig.json .env* ./
