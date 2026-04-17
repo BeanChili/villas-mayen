@@ -33,19 +33,11 @@ export async function PATCH(
 
     if (status) {
       // Validar estado válido
-      const validStatuses = [
-        "COTIZADO", "ANTICIPO", "DEPOSITO", "SALDO",
-        "TOTAL_CANCELADO", "EN_EJECUCION", "FINALIZADO", "FINALIZADO_COBRO"
-      ]
+      const validStatuses = ["COTIZADO", "CONFIRMADO", "EN_EJECUCION", "FINALIZADO", "CANCELADO"]
       if (!validStatuses.includes(status)) {
         return NextResponse.json({ error: "Estado inválido" }, { status: 400 })
       }
       updateData.status = status
-
-      // Si se marca como pagada completamente, actualizar paymentStatus
-      if (status === "FINALIZADO_COBRO") {
-        updateData.paymentStatus = "FINALIZADO_COBRO"
-      }
     }
 
     if (typeof totalAmount === "number") {
@@ -103,6 +95,7 @@ export async function GET(
         user: {
           select: { name: true, username: true },
         },
+        payments: { orderBy: { createdAt: "asc" } },
       },
     })
 

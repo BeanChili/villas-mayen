@@ -125,7 +125,7 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-14 bg-background/80 backdrop-blur-sm border-b border-border flex items-center px-4 lg:px-8">
+        <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-sm border-b border-border flex items-center px-4 lg:px-8">
           <button
             className="lg:hidden mr-4 text-muted-foreground hover:text-foreground transition-colors"
             onClick={() => setSidebarOpen(true)}

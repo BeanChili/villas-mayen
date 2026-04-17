@@ -154,14 +154,14 @@ model Reservation {
   endSchedule     String   @default("NOCHE")  // MANANA | TARDE | NOCHE — horario del día de fin
   schedules       String   // JSON array legacy: ["MANANA","TARDE"] — mantener para compatibilidad
   
-  // Estado de pago
-  paymentStatus   String   @default("COTIZADO") // COTIZADO, ANTICIPO, DEPOSITO, SALDO, TOTAL_CANCELADO
+  // Estado de pago (calculado automáticamente)
+  paymentStatus   String   @default("SIN_PAGO") // SIN_PAGO, PARCIAL, PAGADO
   totalAmount     Float    @default(0)
   paidAmount      Float    @default(0)
   pendingAmount   Float    @default(0)
   
   // Estado de reservación
-  status          String   @default("COTIZADO") // COTIZADO, ANTICIPO, DEPOSITO, SALDO, TOTAL_CANCELADO, EN_EJECUCION, FINALIZADO, FINALIZADO_COBRO
+  status          String   @default("COTIZADO") // COTIZADO, CONFIRMADO, EN_EJECUCION, FINALIZADO, CANCELADO
   
   // Notas
   observations    String?
@@ -173,6 +173,9 @@ model Reservation {
   // Cierre de evento
   eventClosing    EventClosing?
   
+  // Pagos
+  payments        Payment[]
+  
   // Quotes relacionadas
   quote           Quote?
   
@@ -182,6 +185,19 @@ model Reservation {
   // Fechas
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// Pagos de Reservaciones
+model Payment {
+  id            String      @id @default(cuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  
+  amount        Float
+  notes         String?
+  createdByName String      // nombre del usuario que registró el pago
+  
+  createdAt     DateTime    @default(now())
 }
 
 // Catálogo de Productos

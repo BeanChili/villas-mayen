@@ -38,9 +38,9 @@ export type LocationType = 'FREE_AREA' | 'DINING_ROOM' | 'HALL' | 'ROOM' | 'GARD
 
 export type Schedule = 'MANANA' | 'TARDE' | 'NOCHE'
 
-export type PaymentStatus = 'COTIZADO' | 'ANTICIPO' | 'DEPOSITO' | 'SALDO' | 'TOTAL_CANCELADO'
+export type PaymentStatus = 'SIN_PAGO' | 'PARCIAL' | 'PAGADO'
 
-export type ReservationStatus = 'COTIZADO' | 'ANTICIPO' | 'DEPOSITO' | 'SALDO' | 'TOTAL_CANCELADO' | 'EN_EJECUCION' | 'FINALIZADO' | 'FINALIZADO_COBRO'
+export type ReservationStatus = 'COTIZADO' | 'CONFIRMADO' | 'EN_EJECUCION' | 'FINALIZADO' | 'CANCELADO'
 
 export type QuoteStatus = 'BORRADOR' | 'ENVIADA' | 'APROBADA' | 'RECHAZADA'
 
@@ -281,25 +281,29 @@ export function hasPermission(role: Role, module: string, action: 'create' | 're
 
 // Label exports for pages
 export const statusLabels: Record<string, string> = {
-  COTIZADO: 'Cotizado',
-  ANTICIPO: 'Anticipo',
-  DEPOSITO: 'Depósito',
-  SALDO: 'Saldo',
-  TOTAL_CANCELADO: 'Total Cancelado',
+  // Reservation status
+  COTIZADO:     'Cotizado',
+  CONFIRMADO:   'Confirmado',
   EN_EJECUCION: 'En Ejecución',
-  FINALIZADO: 'Finalizado',
-  FINALIZADO_COBRO: 'Finalizado con Cobro',
+  FINALIZADO:   'Finalizado',
+  CANCELADO:    'Cancelado',
+  // Payment status
+  SIN_PAGO: 'Sin Pago',
+  PARCIAL:  'Pago Parcial',
+  PAGADO:   'Pagado',
 }
 
 export const statusColors: Record<string, string> = {
-  COTIZADO: '#9ca3af', // gray-400 - Cotizado (gris)
-  ANTICIPO: '#fbbf24', // amber-400 - Anticipo (amarillo)
-  DEPOSITO: '#3b82f6', // blue-500 - Deposito (azul)
-  SALDO: '#f97316', // orange-500 - Saldo (naranja)
-  TOTAL_CANCELADO: '#22c55e', // green-500 - Total Cancelado (verde)
-  EN_EJECUCION: '#a855f7', // purple-500 - En Ejecución (morado)
-  FINALIZADO: '#64748b', // slate-500 - Finalizado (gris oscuro)
-  FINALIZADO_COBRO: '#10b981', // emerald-500 - Finalizado con Cobro
+  // Reservation status
+  COTIZADO:     '#9ca3af', // gray
+  CONFIRMADO:   '#3b82f6', // blue
+  EN_EJECUCION: '#a855f7', // purple
+  FINALIZADO:   '#10b981', // emerald
+  CANCELADO:    '#ef4444', // red
+  // Payment status
+  SIN_PAGO: '#9ca3af', // gray
+  PARCIAL:  '#f59e0b', // amber
+  PAGADO:   '#10b981', // emerald
 }
 
 export const clientTypeLabels: Record<string, string> = {

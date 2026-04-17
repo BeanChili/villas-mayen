@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
         user: {
           select: { name: true, username: true },
         },
+        payments: { orderBy: { createdAt: "asc" } },
       },
       orderBy: { startDate: "asc" },
     })
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
     // Validar campos requeridos
     if (!clientId || !locationType || !locationId || !startDate || !endDate || !startSchedule || !endSchedule) {
       return NextResponse.json(
-        { error: "Faltan campos requeridos (clientId, locationType, locationId, startDate, endDate, startSchedule, endSchedule)" },
+        { error: "Completá todos los campos obligatorios antes de continuar" },
         { status: 400 }
       )
     }
@@ -128,11 +129,11 @@ export async function POST(request: NextRequest) {
         locationType,
         OR: [
           {
-            startDate: { lte: new Date(endDate) },
-            endDate: { gte: new Date(startDate) },
+            startDate: { lte: new Date(endDate + "T12:00:00") },
+            endDate: { gte: new Date(startDate + "T12:00:00") },
           },
         ],
-        status: { notIn: ["FINALIZADO", "FINALIZADO_COBRO", "TOTAL_CANCELADO"] },
+        status: { notIn: ["FINALIZADO", "CANCELADO"] },
       },
     })
 
@@ -173,6 +174,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Verify clientId exists before attempting create
+    const clientExists = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } })
+    if (!clientExists) {
+      return NextResponse.json(
+        { error: "El cliente seleccionado no existe. Por favor recargá la página y volvé a intentarlo." },
+        { status: 400 }
+      )
+    }
+
+    // Resolve userId safely — verify the user still exists in DB
+    const sessionUserId: string | undefined = (session.user as any).id
+    let resolvedUserId: string | undefined = undefined
+    if (sessionUserId) {
+      const userExists = await prisma.user.findUnique({ where: { id: sessionUserId }, select: { id: true } })
+      resolvedUserId = userExists ? sessionUserId : undefined
+    }
+
     const reservation = await prisma.reservation.create({
       data: {
         clientId,
@@ -180,18 +198,18 @@ export async function POST(request: NextRequest) {
         locationType,
         locationId,
         locationName,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: new Date(startDate + "T12:00:00"),
+        endDate: new Date(endDate + "T12:00:00"),
         startSchedule,
         endSchedule,
         schedules: JSON.stringify(derivedSchedules),
-        totalAmount: totalAmount || 0,
+        totalAmount: Math.round((totalAmount || 0) * 100) / 100,
         paidAmount: 0,
-        pendingAmount: totalAmount || 0,
+        pendingAmount: Math.round((totalAmount || 0) * 100) / 100,
         status: "COTIZADO",
-        paymentStatus: "COTIZADO",
+        paymentStatus: "SIN_PAGO",
         observations,
-        userId: (session.user as any).id,
+        userId: resolvedUserId,
       } as any,
       include: {
         client: true,

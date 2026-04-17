@@ -56,28 +56,32 @@ export function parseSchedule(schedulesJson: string): string[] {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    COTIZADO: '#9333EA',      // Purple
-    ANTICIPO: '#EAB308',      // Yellow
-    DEPOSITO: '#3B82F6',      // Blue
-    SALDO: '#F97316',         // Orange
-    TOTAL_CANCELADO: '#22C55E', // Green
-    EN_EJECUCION: '#EF4444',  // Red
-    FINALIZADO: '#6B7280',    // Gray
-    FINALIZADO_COBRO: '#6B7280', // Gray
+    // ReservationStatus
+    COTIZADO:     '#6B7280', // gray
+    CONFIRMADO:   '#3B82F6', // blue
+    EN_EJECUCION: '#8B5CF6', // purple
+    FINALIZADO:   '#10B981', // emerald
+    CANCELADO:    '#EF4444', // red
+    // PaymentStatus
+    SIN_PAGO: '#6B7280', // gray
+    PARCIAL:  '#F59E0B', // amber
+    PAGADO:   '#10B981', // emerald
   }
   return colors[status] || '#6B7280'
 }
 
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    COTIZADO: 'Cotizado',
-    ANTICIPO: 'Anticipo',
-    DEPOSITO: 'Depósito',
-    SALDO: 'Saldo',
-    TOTAL_CANCELADO: 'Total Cancelado',
+    // ReservationStatus
+    COTIZADO:     'Cotizado',
+    CONFIRMADO:   'Confirmado',
     EN_EJECUCION: 'En Ejecución',
-    FINALIZADO: 'Finalizado',
-    FINALIZADO_COBRO: 'Finalizado con Cierre',
+    FINALIZADO:   'Finalizado',
+    CANCELADO:    'Cancelado',
+    // PaymentStatus
+    SIN_PAGO: 'Sin Pago',
+    PARCIAL:  'Parcial',
+    PAGADO:   'Pagado',
   }
   return labels[status] || status
 }

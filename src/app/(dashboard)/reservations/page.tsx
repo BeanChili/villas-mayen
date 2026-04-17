@@ -2,14 +2,13 @@
 
 import React, { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { statusLabels } from "@/types"
 import { formatCurrency, getStatusColor, getStatusLabel } from "@/lib/utils"
-import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays } from "lucide-react"
+import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, ChevronDown, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ─── tipos locales ────────────────────────────────────────────────────────────
@@ -20,6 +19,14 @@ interface Client {
   clientType: string
   phone?: string
   email?: string
+}
+
+interface Payment {
+  id: string
+  amount: number
+  notes?: string | null
+  createdByName: string
+  createdAt: string
 }
 
 interface Reservation {
@@ -34,10 +41,12 @@ interface Reservation {
   endSchedule: string
   schedules: string | string[]
   status: string
+  paymentStatus: string
   totalAmount: number
   paidAmount: number
   pendingAmount?: number
   observations?: string
+  payments: Payment[]
 }
 
 interface Location {
@@ -100,12 +109,9 @@ function slotVisible(res: Reservation, dayKey: string, slotIdx: number): boolean
 
 const RESERVATION_STATUS_FLOW = [
   "COTIZADO",
-  "ANTICIPO",
-  "DEPOSITO",
-  "SALDO",
+  "CONFIRMADO",
   "EN_EJECUCION",
   "FINALIZADO",
-  "FINALIZADO_COBRO",
 ] as const
 
 // ─── componente modal de detalle ─────────────────────────────────────────────
@@ -117,60 +123,72 @@ interface ReservationDetailModalProps {
 
 function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModalProps) {
   const [paymentAmount, setPaymentAmount] = useState("")
+  const [paymentNotes, setPaymentNotes] = useState("")
   const [savingPayment, setSavingPayment] = useState(false)
+  const [paymentError, setPaymentError] = useState("")
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
+  const [changingStatus, setChangingStatus] = useState(false)
 
   const pending = reservation.totalAmount - reservation.paidAmount
   const currentIdx = RESERVATION_STATUS_FLOW.indexOf(reservation.status as any)
-  const nextStatus = currentIdx < RESERVATION_STATUS_FLOW.length - 1
-    ? RESERVATION_STATUS_FLOW[currentIdx + 1]
-    : null
 
-  const advanceStatus = async () => {
-    if (!nextStatus) return
+  const changeStatus = async (newStatus: string) => {
+    if (newStatus === reservation.status) { setStatusDropdownOpen(false); return }
+    setChangingStatus(true)
+    setStatusDropdownOpen(false)
     try {
       const res = await fetch(`/api/reservations/${reservation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({ status: newStatus }),
       })
       if (res.ok) {
         const updated = await res.json()
         onUpdate({ ...reservation, status: updated.status })
       }
     } catch (err) {
-      console.error("Error advancing status:", err)
+      console.error("Error changing status:", err)
+    } finally {
+      setChangingStatus(false)
     }
   }
 
   const registerPayment = async () => {
-    const amount = parseFloat(paymentAmount)
+    const amount = Math.round(parseFloat(paymentAmount) * 100) / 100
     if (isNaN(amount) || amount <= 0) {
-      alert("Ingrese un monto válido")
+      setPaymentError("Ingresá un monto válido mayor a 0")
       return
     }
-
+    if (amount > pending + 0.01) {
+      setPaymentError(`El monto no puede superar el pendiente (${formatCurrency(pending)})`)
+      return
+    }
+    setPaymentError("")
     setSavingPayment(true)
     try {
-      const newPaid = reservation.paidAmount + amount
-      const res = await fetch(`/api/reservations/${reservation.id}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/reservations/${reservation.id}/payments`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paidAmount: newPaid,
-          totalAmount: reservation.totalAmount,
-        }),
+        body: JSON.stringify({ amount, notes: paymentNotes || undefined }),
       })
       if (res.ok) {
         const updated = await res.json()
         onUpdate({
           ...reservation,
           paidAmount: updated.paidAmount,
-          pendingAmount: updated.pendingAmount ?? reservation.totalAmount - updated.paidAmount,
+          pendingAmount: updated.pendingAmount,
+          paymentStatus: updated.paymentStatus,
+          payments: updated.payments ?? reservation.payments,
         })
         setPaymentAmount("")
+        setPaymentNotes("")
+      } else {
+        const err = await res.json()
+        setPaymentError(err.error || "Error al registrar el pago")
       }
     } catch (err) {
       console.error("Error registering payment:", err)
+      setPaymentError("Error de conexión")
     } finally {
       setSavingPayment(false)
     }
@@ -182,7 +200,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
       const res = await fetch(`/api/reservations/${reservation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "TOTAL_CANCELADO" }),
+        body: JSON.stringify({ status: "CANCELADO" }),
       })
       if (res.ok) {
         const updated = await res.json()
@@ -196,6 +214,9 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
   const paymentProgress = reservation.totalAmount > 0
     ? (reservation.paidAmount / reservation.totalAmount) * 100
     : 0
+
+  const isCancelled = reservation.status === "CANCELADO"
+  const isFinalised = reservation.status === "FINALIZADO"
 
   return (
     <div className="space-y-6">
@@ -213,12 +234,14 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
             <span className="text-sm">{reservation.locationName}</span>
           </div>
         </div>
-        <span
-          className="vm-status-badge"
-          style={{ backgroundColor: getStatusColor(reservation.status), color: "#fff" }}
-        >
-          {getStatusLabel(reservation.status)}
-        </span>
+        <div className="flex flex-col items-end gap-1.5">
+          <span
+            className="vm-status-badge text-[10px]"
+            style={{ backgroundColor: getStatusColor(reservation.paymentStatus), color: "#fff" }}
+          >
+            {getStatusLabel(reservation.paymentStatus)}
+          </span>
+        </div>
       </div>
 
       {/* Dates */}
@@ -253,7 +276,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         </div>
       </div>
 
-      {/* Payments */}
+      {/* Payments section */}
       <div className="rounded-xl border border-border p-5 space-y-4 bg-card">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-muted-foreground">Pagos</span>
@@ -292,63 +315,145 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
           </div>
         </div>
 
-        {/* Register payment */}
-        {pending > 0 && (
-          <div className="flex gap-2 pt-4 border-t border-border">
+        {/* Payment history */}
+        {reservation.payments && reservation.payments.length > 0 && (
+          <div className="pt-3 border-t border-border space-y-2">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Historial</p>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {reservation.payments.map((p) => (
+                <div key={p.id} className="flex items-start justify-between gap-3 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold text-vm-sage">{formatCurrency(p.amount)}</span>
+                      <span className="text-[10px] text-muted-foreground">{p.createdByName}</span>
+                    </div>
+                    {p.notes && (
+                      <p className="text-xs text-muted-foreground/80 truncate mt-0.5">{p.notes}</p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
+                    {new Date(p.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Register payment form */}
+        {!isCancelled && pending > 0 && (
+          <div className="flex flex-col gap-2 pt-4 border-t border-border">
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder="Monto"
+                value={paymentAmount}
+                onChange={e => { setPaymentAmount(e.target.value); setPaymentError("") }}
+                className="flex-1 font-mono"
+                min={0}
+                max={pending}
+              />
+              <Button
+                onClick={registerPayment}
+                disabled={savingPayment || !paymentAmount}
+                size="sm"
+                className="px-5"
+              >
+                {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : "Registrar"}
+              </Button>
+            </div>
             <Input
-              type="number"
-              placeholder="Monto"
-              value={paymentAmount}
-              onChange={e => setPaymentAmount(e.target.value)}
-              className="flex-1 font-mono"
-              min={0}
-              max={pending}
+              placeholder="Notas (opcional)"
+              value={paymentNotes}
+              onChange={e => setPaymentNotes(e.target.value)}
+              className="text-sm"
             />
-            <Button
-              onClick={registerPayment}
-              disabled={savingPayment || !paymentAmount}
-              size="sm"
-              className="px-5"
-            >
-              {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : "Registrar"}
-            </Button>
+            {paymentError && (
+              <div className="flex items-center gap-1.5 text-destructive text-xs">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {paymentError}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 flex-wrap">
-        {nextStatus && reservation.status !== "TOTAL_CANCELADO" && reservation.status !== "FINALIZADO_COBRO" && (
-          <Button variant="outline" onClick={advanceStatus} size="sm">
-            Avanzar a: {getStatusLabel(nextStatus)}
-          </Button>
-        )}
-
-        {reservation.status !== "TOTAL_CANCELADO" &&
-         reservation.status !== "FINALIZADO" &&
-         reservation.status !== "FINALIZADO_COBRO" && (
-          <Button variant="destructive" onClick={cancelReservation} size="sm">
-            Cancelar Reservación
-          </Button>
-        )}
-
-        {paymentProgress >= 100 && reservation.status !== "FINALIZADO_COBRO" && (
-          <Button
-            size="sm"
-            onClick={async () => {
-              const res = await fetch(`/api/reservations/${reservation.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "FINALIZADO_COBRO" }),
-              })
-              if (res.ok) {
-                const updated = await res.json()
-                onUpdate({ ...reservation, status: updated.status })
+      <div className="flex gap-3 flex-wrap items-center">
+        {/* Status dropdown */}
+        {!isCancelled && !isFinalised && (
+          <div className="relative">
+            <button
+              onClick={() => setStatusDropdownOpen(v => !v)}
+              disabled={changingStatus}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150",
+                "border-border bg-card hover:bg-secondary text-foreground",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              {changingStatus
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: getStatusColor(reservation.status) }}
+                  />
               }
-            }}
+              <span>{getStatusLabel(reservation.status)}</span>
+              <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform duration-150", statusDropdownOpen && "rotate-180")} />
+            </button>
+
+            {statusDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[180px] rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
+                <div className="px-3 py-2 border-b border-border">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cambiar estado</p>
+                </div>
+                {RESERVATION_STATUS_FLOW.map((s, idx) => {
+                  const isCurrent = s === reservation.status
+                  const isPast = idx < currentIdx
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => changeStatus(s)}
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors duration-100",
+                        isCurrent
+                          ? "bg-accent text-foreground font-medium"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        isPast && "opacity-50"
+                      )}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: getStatusColor(s) }}
+                      />
+                      <span className="flex-1">{getStatusLabel(s)}</span>
+                      {isCurrent && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                    </button>
+                  )
+                })}
+                <div className="border-t border-border">
+                  <button
+                    onClick={() => { setStatusDropdownOpen(false); cancelReservation() }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/8 transition-colors duration-100"
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0 bg-destructive" />
+                    <span>Cancelar reservación</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cancelled / Finalised state pill */}
+        {(isCancelled || isFinalised) && (
+          <span
+            className="vm-status-badge"
+            style={{ backgroundColor: getStatusColor(reservation.status), color: "#fff" }}
           >
-            Completar Cobro
-          </Button>
+            {getStatusLabel(reservation.status)}
+          </span>
         )}
       </div>
 
@@ -371,10 +476,13 @@ export default function ReservationsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState<"month" | "week" | "list">("list")
+  const [displayMode, setDisplayMode] = useState<"list" | "calendar">("calendar")
+  const [granularity, setGranularity] = useState<"month" | "week">("month")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+  const [formError, setFormError] = useState("")
 
   const [formData, setFormData] = useState({
     clientId: "",
@@ -389,18 +497,27 @@ export default function ReservationsPage() {
     observations: "",
   })
 
+  // Add client search state
+  const [clientSearch, setClientSearch] = useState("")
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+
   useEffect(() => {
     fetchData()
-  }, [currentDate, viewMode])
+  }, [currentDate, displayMode, granularity])
 
   async function fetchData() {
-    setLoading(true)
+    // First load: show full spinner. Subsequent: show subtle refresh overlay
+    if (reservations.length === 0) {
+      setLoading(true)
+    } else {
+      setIsRefreshing(true)
+    }
     try {
       const months: Array<{ month: number; year: number }> = []
       const m1 = { month: currentDate.getMonth() + 1, year: currentDate.getFullYear() }
       months.push(m1)
 
-      if (viewMode === "week") {
+      if (granularity === "week") {
         const weekDays = getWeekDays(currentDate)
         const lastDay  = weekDays[6]
         const m2 = { month: lastDay.getMonth() + 1, year: lastDay.getFullYear() }
@@ -432,13 +549,14 @@ export default function ReservationsPage() {
       console.error("Error fetching data:", err)
     } finally {
       setLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   // ── navegación ─────────────────────────────────────────────────────────────
 
   const prevPeriod = () => {
-    if (viewMode === "month") {
+    if (granularity === "month") {
       setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
     } else {
       const d = new Date(currentDate)
@@ -448,7 +566,7 @@ export default function ReservationsPage() {
   }
 
   const nextPeriod = () => {
-    if (viewMode === "month") {
+    if (granularity === "month") {
       setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
     } else {
       const d = new Date(currentDate)
@@ -463,17 +581,18 @@ export default function ReservationsPage() {
     e.preventDefault()
 
     if (formData.startDate > formData.endDate) {
-      alert("La fecha de inicio no puede ser posterior a la fecha de fin")
+      setFormError("La fecha de inicio no puede ser posterior a la fecha de fin")
       return
     }
     if (formData.startDate === formData.endDate) {
       const si = SCHEDULE_ORDER.indexOf(formData.startSchedule)
       const ei = SCHEDULE_ORDER.indexOf(formData.endSchedule)
       if (si > ei) {
-        alert("En el mismo día, el horario de inicio no puede ser posterior al horario de fin")
+        setFormError("En el mismo día, el horario de inicio no puede ser posterior al horario de fin")
         return
       }
     }
+    setFormError("")
 
     try {
       const response = await fetch("/api/reservations", {
@@ -488,7 +607,7 @@ export default function ReservationsPage() {
         fetchData()
       } else {
         const err = await response.json()
-        alert(err.error || "Error al crear reservación")
+        setFormError(err.error || "Error al crear reservación")
       }
     } catch (err) {
       console.error("Error creating reservation:", err)
@@ -508,6 +627,7 @@ export default function ReservationsPage() {
       totalAmount: 0,
       observations: "",
     })
+    setFormError("")
   }
 
   // ── helpers de calendario ──────────────────────────────────────────────────
@@ -553,25 +673,46 @@ export default function ReservationsPage() {
   const slotToLeft  = (idx: number) => `${(idx / 3) * 100}%`
   const slotToRight = (idx: number) => `${((2 - idx) / 3) * 100}%`
 
+  // Max bars to show before "+N más" overflow label
+  const MAX_BARS = 3
+
   // ── render celda calendario ───────────────────────────────────────────────
 
-  const renderDayCell = (dayKey: string, dayNum: number | string) => {
+  const renderDayCell = (dayKey: string, dayNum: number | string, hideNumber = false) => {
     const isToday  = dayKey === today
     const dayRes   = getResForDay(dayKey)
+    const visible  = dayRes.slice(0, MAX_BARS)
+    const overflow = dayRes.length - MAX_BARS
+
+    const handleCellClick = () => {
+      setFormData(prev => ({
+        ...prev,
+        startDate: dayKey,
+        endDate: dayKey,
+        startSchedule: "MANANA",
+        endSchedule: "NOCHE",
+      }))
+      setIsDialogOpen(true)
+    }
 
     return (
-      <div className="vm-day-cell">
-        {/* Day number */}
-        <div className="flex items-center gap-1 mb-1 shrink-0">
-          {isToday ? (
-            <span className="vm-day-today">{dayNum}</span>
-          ) : (
-            <span className="text-xs font-medium text-muted-foreground">{dayNum}</span>
-          )}
-        </div>
+      <div
+        className="vm-day-cell cursor-pointer"
+        onClick={handleCellClick}
+      >
+        {/* Day number — hidden in week view (header already shows it) */}
+        {!hideNumber && (
+          <div className="flex items-center gap-1 mb-1 shrink-0">
+            {isToday ? (
+              <span className="vm-day-today">{dayNum}</span>
+            ) : (
+              <span className="text-xs font-medium text-muted-foreground">{dayNum}</span>
+            )}
+          </div>
+        )}
 
         {/* Third guides + bars */}
-        <div className="relative flex-1 flex flex-col gap-0.5">
+        <div className="relative flex-1 flex flex-col gap-1">
           {/* Third dividers */}
           <div className="absolute inset-0 flex pointer-events-none" aria-hidden="true">
             <div className="flex-1 border-r border-border/40" />
@@ -580,7 +721,7 @@ export default function ReservationsPage() {
           </div>
 
           {/* Reservation bars */}
-          {dayRes.map((res, i) => {
+          {visible.map((res) => {
             const startKey = getDateKey(parseDate(res.startDate))
             const endKey   = getDateKey(parseDate(res.endDate))
             const isFirst  = dayKey === startKey
@@ -591,38 +732,50 @@ export default function ReservationsPage() {
             const left  = isFirst ? slotToLeft(si)  : "0%"
             const right = isLast  ? slotToRight(ei) : "0%"
 
+            // Show location label only on the first day of the reservation
+            const showLabel = isFirst
+
             return (
               <div
                 key={res.id}
-                className="relative h-[5px]"
-                style={{ marginTop: i > 0 ? "2px" : undefined }}
+                className="relative h-[14px]"
               >
                 <div
-                  className="vm-res-bar"
+                  className="vm-res-bar flex items-center overflow-hidden"
                   style={{
                     left,
                     right,
                     backgroundColor: getStatusColor(res.status),
                   }}
-                  onClick={() => setSelectedReservation(res)}
-                  title={`${res.client.name} — ${res.locationName}`}
-                />
+                  onClick={(e) => { e.stopPropagation(); setSelectedReservation(res) }}
+                  title={`${res.locationName} — ${res.client.name}`}
+                >
+                  {showLabel && (
+                    <span
+                      className="truncate leading-none pointer-events-none select-none"
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: 600,
+                        color: "rgba(255,255,255,0.92)",
+                        paddingLeft: "4px",
+                        paddingRight: "4px",
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      {res.client.name}
+                    </span>
+                  )}
+                </div>
               </div>
             )
           })}
 
-          {/* Client name label */}
-          {dayRes.length > 0 && (
-            <div className="mt-0.5 truncate">
-              {dayRes.slice(0, 1).map(res => {
-                const startKey = getDateKey(parseDate(res.startDate))
-                if (dayKey !== startKey) return null
-                return (
-                  <span key={res.id} className="text-[8px] leading-none text-muted-foreground/60">
-                    {res.client.name}
-                  </span>
-                )
-              })}
+          {/* Overflow badge */}
+          {overflow > 0 && (
+            <div className="flex items-center mt-0.5">
+              <span className="text-[9px] font-semibold text-muted-foreground bg-muted rounded px-1 py-0.5 leading-none">
+                +{overflow} más
+              </span>
             </div>
           )}
         </div>
@@ -672,60 +825,36 @@ export default function ReservationsPage() {
     const weekDays = getWeekDays(currentDate)
 
     return (
-      <div className="overflow-x-auto">
-        <div className="grid grid-cols-8 border border-border rounded-xl overflow-hidden min-w-[640px]">
-          {/* Header */}
-          <div className="text-[11px] font-semibold text-muted-foreground text-center py-2.5 bg-muted/50 border-b border-border uppercase tracking-wider">
-            Horario
-          </div>
-          {weekDays.map((d, i) => {
-            const isT = getDateKey(d) === today
-            return (
-              <div key={i} className="py-2.5 text-center bg-muted/50 border-b border-border border-l">
-                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{dayNames[d.getDay()]}</div>
-                <div className="flex items-center justify-center gap-1 mt-1">
-                  {isT ? (
-                    <span className="vm-day-today text-sm w-7 h-7">{d.getDate()}</span>
-                  ) : (
-                    <span className="text-sm font-medium text-foreground">{d.getDate()}</span>
-                  )}
-                </div>
+      <div className="grid grid-cols-7 border border-border rounded-xl overflow-hidden">
+        {/* Day headers */}
+        {weekDays.map((d, i) => {
+          const isT = getDateKey(d) === today
+          return (
+            <div key={i} className={cn("py-2.5 text-center bg-muted/50 border-b border-border", i > 0 && "border-l border-border")}>
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{dayNames[d.getDay()]}</div>
+              <div className="flex items-center justify-center mt-1">
+                {isT ? (
+                  <span className="vm-day-today text-sm w-7 h-7">{d.getDate()}</span>
+                ) : (
+                  <span className="text-sm font-medium text-foreground">{d.getDate()}</span>
+                )}
               </div>
-            )
-          })}
+            </div>
+          )
+        })}
 
-          {/* Rows per schedule */}
-          {SCHEDULE_ORDER.map((slot, slotIdx) => (
-            <React.Fragment key={slot}>
-              <div className="p-2 flex items-center justify-center bg-muted/30 border-t border-border">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{SCHEDULE_LABELS[slot]}</span>
-              </div>
-
-              {weekDays.map((d, di) => {
-                const dayKey = getDateKey(d)
-                const visible = getResForDay(dayKey).filter(r => slotVisible(r, dayKey, slotIdx))
-                return (
-                  <div
-                    key={`${slot}-${di}`}
-                    className="min-h-14 p-1 space-y-0.5 bg-card border-t border-l border-border"
-                  >
-                    {visible.map(res => (
-                      <div
-                        key={res.id}
-                        className="text-[9px] leading-4 px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 truncate transition-opacity text-white font-medium"
-                        style={{ backgroundColor: getStatusColor(res.status) }}
-                        onClick={() => setSelectedReservation(res)}
-                        title={`${res.client.name} — ${res.locationName}`}
-                      >
-                        {res.client.name}
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </React.Fragment>
-          ))}
-        </div>
+        {/* Day cells — same renderDayCell as month view */}
+        {weekDays.map((d, i) => {
+          const dayKey = getDateKey(d)
+          return (
+            <div
+              key={dayKey}
+              className={cn("border-t border-border", i > 0 && "border-l border-border")}
+            >
+              {renderDayCell(dayKey, "", true)}
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -733,8 +862,31 @@ export default function ReservationsPage() {
   // ── vista de lista ────────────────────────────────────────────────────────
 
   const renderListView = () => {
-    const sorted = [...reservations].sort((a, b) =>
-      new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+    // Filter reservations to the current period
+    let filtered: Reservation[]
+    if (granularity === "week") {
+      const weekDays = getWeekDays(currentDate)
+      const weekStart = getDateKey(weekDays[0])
+      const weekEnd   = getDateKey(weekDays[6])
+      filtered = reservations.filter(r => {
+        const s = getDateKey(parseDate(r.startDate))
+        const e = getDateKey(parseDate(r.endDate))
+        return s <= weekEnd && e >= weekStart
+      })
+    } else {
+      const y = currentDate.getFullYear()
+      const m = currentDate.getMonth()
+      const monthStart = getDateKey(new Date(y, m, 1))
+      const monthEnd   = getDateKey(new Date(y, m + 1, 0))
+      filtered = reservations.filter(r => {
+        const s = getDateKey(parseDate(r.startDate))
+        const e = getDateKey(parseDate(r.endDate))
+        return s <= monthEnd && e >= monthStart
+      })
+    }
+
+    const sorted = [...filtered].sort((a, b) =>
+      new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
     )
 
     return (
@@ -766,9 +918,9 @@ export default function ReservationsPage() {
                   <tr
                     key={res.id}
                     className="vm-table-row"
-                    onClick={() => setSelectedReservation(res)}
+                  onClick={(e) => { e.stopPropagation(); setSelectedReservation(res) }}
                   >
-                    <td className="p-3 font-medium text-foreground">{res.client.name}</td>
+                    <td className="p-3 font-medium text-foreground max-w-[160px] truncate" title={res.client.name}>{res.client.name}</td>
                     <td className="p-3 text-muted-foreground">{res.locationName}</td>
                     <td className="p-3 text-muted-foreground text-xs">
                       {parseDate(res.startDate).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
@@ -799,7 +951,7 @@ export default function ReservationsPage() {
   // ── título del período ─────────────────────────────────────────────────────
 
   const getPeriodTitle = () => {
-    if (viewMode === "month") {
+    if (granularity === "month") {
       return `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
     }
     const week = getWeekDays(currentDate)
@@ -817,78 +969,131 @@ export default function ReservationsPage() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl text-foreground tracking-tight">
+          <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">
             Reservaciones
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Administra las reservaciones del centro de eventos
           </p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
+        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" />
-          Nueva Reservación
+          <span className="hidden sm:inline">Nueva Reservación</span>
+          <span className="sm:hidden">Nueva</span>
         </Button>
       </div>
 
       {/* Calendar section — no wrapping Card, just a bordered container */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/30">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-border bg-muted/30">
           {/* Period navigation */}
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={prevPeriod} data-testid="prev-period" className="h-8 w-8 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={prevPeriod} data-testid="prev-period" className="h-8 w-8 rounded-lg shrink-0">
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="text-sm font-semibold min-w-[220px] text-center text-foreground" data-testid="current-period">
+            <span className="text-sm font-semibold min-w-[160px] sm:min-w-[220px] text-center text-foreground" data-testid="current-period">
               {getPeriodTitle()}
             </span>
-            <Button variant="ghost" size="icon" onClick={nextPeriod} data-testid="next-period" className="h-8 w-8 rounded-lg">
+            <Button variant="ghost" size="icon" onClick={nextPeriod} data-testid="next-period" className="h-8 w-8 rounded-lg shrink-0">
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
           {/* View switcher */}
-          <div className="flex rounded-lg overflow-hidden border border-border">
-            {(["list", "month", "week"] as const).map(mode => (
-              <button
-                key={mode}
-                className={cn(
-                  "vm-view-switch",
-                  viewMode === mode ? "vm-view-switch--active" : "vm-view-switch--idle"
-                )}
-                onClick={() => setViewMode(mode)}
-              >
-                {mode === "list" ? "Lista" : mode === "month" ? "Mes" : "Semana"}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {/* Lista / Calendario */}
+            <div className="flex rounded-lg overflow-hidden border border-border">
+              {(["calendar", "list"] as const).map(mode => (
+                <button
+                  key={mode}
+                  className={cn(
+                    "vm-view-switch",
+                    displayMode === mode ? "vm-view-switch--active" : "vm-view-switch--idle"
+                  )}
+                  onClick={() => setDisplayMode(mode)}
+                >
+                  {mode === "list" ? "Lista" : "Calendario"}
+                </button>
+              ))}
+            </div>
+            {/* Mes / Semana — siempre visible */}
+            <div className="flex rounded-lg overflow-hidden border border-border">
+              {(["month", "week"] as const).map(g => (
+                <button
+                  key={g}
+                  className={cn(
+                    "vm-view-switch",
+                    granularity === g ? "vm-view-switch--active" : "vm-view-switch--idle"
+                  )}
+                  onClick={() => setGranularity(g)}
+                >
+                  {g === "month" ? "Mes" : "Semana"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-0">
+        <div className="relative w-full overflow-hidden">
+          {isRefreshing && (
+            <div className="absolute inset-0 z-10 bg-background/50 flex items-center justify-center pointer-events-none rounded-b-xl">
+              <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
             </div>
-          ) : viewMode === "list" ? renderListView() : viewMode === "month" ? renderMonthView() : renderWeekView()}
+          ) : (
+            <div className="w-full">
+              <div className={cn("w-full", displayMode !== "list" && "hidden")}>
+                {renderListView()}
+              </div>
+              <div className={cn("w-full p-4", !(displayMode === "calendar" && granularity === "month") && "hidden")} style={{ minHeight: 520 }}>
+                {renderMonthView()}
+              </div>
+              <div className={cn("w-full p-4", !(displayMode === "calendar" && granularity === "week") && "hidden")} style={{ minHeight: 520 }}>
+                {renderWeekView()}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Status legend */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1">
-        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Estados</span>
-        {Object.entries(statusLabels).map(([key, label]) => (
-          <div key={key} className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getStatusColor(key) }} />
-            <span className="text-xs text-muted-foreground">{label}</span>
-          </div>
-        ))}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-1">
+        {/* Reservation statuses */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Reservación</span>
+          {(["COTIZADO","CONFIRMADO","EN_EJECUCION","FINALIZADO","CANCELADO"] as const).map(key => (
+            <div key={key} className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getStatusColor(key) }} />
+              <span className="text-xs text-muted-foreground">{statusLabels[key]}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="hidden sm:block w-px h-4 bg-border" />
+
+        {/* Payment statuses */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Pago</span>
+          {(["SIN_PAGO","PARCIAL","PAGADO"] as const).map(key => (
+            <div key={key} className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getStatusColor(key) }} />
+              <span className="text-xs text-muted-foreground">{statusLabels[key]}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Dialog: Nueva Reservación ──────────────────────────────────────── */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={v => { setIsDialogOpen(v); if (!v) resetForm() }}>
         <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display text-xl">Nueva Reservación</DialogTitle>
@@ -898,19 +1103,57 @@ export default function ReservationsPage() {
             {/* Cliente */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Cliente *</label>
-              <Select
-                value={formData.clientId}
-                onValueChange={v => setFormData({ ...formData, clientId: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative">
+                <div
+                  className="flex items-center border border-input rounded-md bg-background px-3 py-2 text-sm cursor-pointer"
+                  onClick={() => setClientDropdownOpen(v => !v)}
+                >
+                  <Search className="w-3.5 h-3.5 text-muted-foreground mr-2 shrink-0" />
+                  {formData.clientId
+                    ? <span className="truncate">{clients.find(c => c.id === formData.clientId)?.name ?? "Cliente"}</span>
+                    : <span className="text-muted-foreground">Buscar cliente...</span>
+                  }
+                </div>
+                {clientDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg">
+                    <div className="p-2 border-b border-border">
+                      <input
+                        autoFocus
+                        className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                        placeholder="Escribir nombre..."
+                        value={clientSearch}
+                        onChange={e => setClientSearch(e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {clients
+                        .filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                        .slice(0, 20)
+                        .map(c => (
+                          <div
+                            key={c.id}
+                            className={cn(
+                              "px-3 py-2 text-sm cursor-pointer hover:bg-accent truncate",
+                              formData.clientId === c.id && "bg-accent font-medium"
+                            )}
+                            onClick={() => {
+                              setFormData({ ...formData, clientId: c.id })
+                              setClientDropdownOpen(false)
+                              setClientSearch("")
+                            }}
+                          >
+                            {c.name}
+                          </div>
+                        ))
+                      }
+                      {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
+                        <div className="px-3 py-4 text-sm text-muted-foreground text-center">Sin resultados</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Tipo de ubicación */}
@@ -1038,7 +1281,7 @@ export default function ReservationsPage() {
                 type="number"
                 min={0}
                 value={formData.totalAmount}
-                onChange={e => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })}
+                onChange={e => setFormData({ ...formData, totalAmount: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 })}
                 className="font-mono"
               />
             </div>
@@ -1054,16 +1297,24 @@ export default function ReservationsPage() {
             </div>
 
             <DialogFooter className="gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => { setIsDialogOpen(false); resetForm() }}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit">
-                Crear Reservación
-              </Button>
+              {formError && (
+                <div className="flex items-start gap-2 w-full rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-destructive text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{formError}</span>
+                </div>
+              )}
+              <div className="flex gap-2 w-full justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => { setIsDialogOpen(false); resetForm() }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  Crear Reservación
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </DialogContent>

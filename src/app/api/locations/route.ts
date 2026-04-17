@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     if (!type || type === "ROOM") {
       const rooms = await prisma.room.findMany({
         where: { active: true },
-        select: { id: true, number: true, capacity: true, bedType: true, pricePerNight: true, status: true },
+        select: { id: true, number: true, capacity: true, bedType: true, pricePerNight: true, status: true, floorId: true },
         take: 50,
       })
       const floors = await prisma.floor.findMany({
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       })
       const floorMap = new Map(floors.map(f => [f.id, f]))
       locations.push(...rooms.map(room => {
-        const floor = floorMap.get(room.id)
+        const floor = floorMap.get(room.floorId)
         return {
           id: room.id,
           name: `Hab ${room.number} - ${floor?.building.name || ''} Piso ${floor?.level}`,
