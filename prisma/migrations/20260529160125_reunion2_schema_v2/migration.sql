@@ -23,23 +23,40 @@ CREATE TABLE "Location" (
 );
 
 -- Migrar FreeArea → Location (type = FREE_AREA)
+-- Usamos COALESCE para manejar columnas que pueden no existir en tablas viejas
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'FREE_AREA', "capacity", "description", "active", "createdAt", "updatedAt"
+SELECT "id", "name", 'FREE_AREA', "capacity", 
+  COALESCE("description", NULL), 
+  COALESCE("active", true), 
+  COALESCE("createdAt", CURRENT_TIMESTAMP), 
+  COALESCE("updatedAt", CURRENT_TIMESTAMP)
 FROM "FreeArea";
 
 -- Migrar DiningRoom → Location (type = DINING_ROOM)
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'DINING_ROOM', "capacity", "description", "active", "createdAt", "updatedAt"
+SELECT "id", "name", 'DINING_ROOM', "capacity", 
+  COALESCE("description", NULL), 
+  COALESCE("active", true), 
+  COALESCE("createdAt", CURRENT_TIMESTAMP), 
+  COALESCE("updatedAt", CURRENT_TIMESTAMP)
 FROM "DiningRoom";
 
 -- Migrar Hall → Location (type = HALL)
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'HALL', "capacity", "description", "active", "createdAt", "updatedAt"
+SELECT "id", "name", 'HALL', "capacity", 
+  COALESCE("description", NULL), 
+  COALESCE("active", true), 
+  COALESCE("createdAt", CURRENT_TIMESTAMP), 
+  COALESCE("updatedAt", CURRENT_TIMESTAMP)
 FROM "Hall";
 
 -- Migrar Garden → Location (type = GARDEN)
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'GARDEN', "capacity", "description", "active", "createdAt", "updatedAt"
+SELECT "id", "name", 'GARDEN', "capacity", 
+  COALESCE("description", NULL), 
+  COALESCE("active", true), 
+  COALESCE("createdAt", CURRENT_TIMESTAMP), 
+  COALESCE("updatedAt", CURRENT_TIMESTAMP)
 FROM "Garden";
 
 -- Crear índice unique en Location.name
