@@ -30,6 +30,4 @@ RUN npm run build
 EXPOSE 3000
 
 # Start the application
-# Intenta migrate deploy primero. Si falla (ej: no hay historial de migraciones),
-# hace db push y marca la migración como aplicada para que futuros deploys usen migrate deploy
-CMD ["sh", "-c", "(npx prisma migrate deploy 2>/dev/null || (npx prisma db push --accept-data-loss && npx prisma migrate resolve --applied 20260529160125_reunion2_schema_v2)) && npx prisma db seed && npm start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed && npm start"]
