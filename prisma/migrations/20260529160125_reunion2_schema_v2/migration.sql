@@ -23,40 +23,27 @@ CREATE TABLE "Location" (
 );
 
 -- Migrar FreeArea → Location (type = FREE_AREA)
--- Usamos COALESCE para manejar columnas que pueden no existir en tablas viejas
+-- FreeArea tiene: id, name, capacity, description, active, createdAt, updatedAt
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'FREE_AREA', "capacity", 
-  COALESCE("description", NULL), 
-  COALESCE("active", true), 
-  COALESCE("createdAt", CURRENT_TIMESTAMP), 
-  COALESCE("updatedAt", CURRENT_TIMESTAMP)
+SELECT "id", "name", 'FREE_AREA', "capacity", "description", "active", "createdAt", "updatedAt"
 FROM "FreeArea";
 
 -- Migrar DiningRoom → Location (type = DINING_ROOM)
+-- DiningRoom tiene: id, name, capacity, description, active, createdAt, updatedAt
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'DINING_ROOM', "capacity", 
-  COALESCE("description", NULL), 
-  COALESCE("active", true), 
-  COALESCE("createdAt", CURRENT_TIMESTAMP), 
-  COALESCE("updatedAt", CURRENT_TIMESTAMP)
+SELECT "id", "name", 'DINING_ROOM', "capacity", "description", "active", "createdAt", "updatedAt"
 FROM "DiningRoom";
 
 -- Migrar Hall → Location (type = HALL)
+-- Hall tiene: id, name, capacity, type, active, createdAt, updatedAt (NO tiene description)
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'HALL', "capacity", 
-  COALESCE("description", NULL), 
-  COALESCE("active", true), 
-  COALESCE("createdAt", CURRENT_TIMESTAMP), 
-  COALESCE("updatedAt", CURRENT_TIMESTAMP)
+SELECT "id", "name", 'HALL', "capacity", NULL, "active", "createdAt", "updatedAt"
 FROM "Hall";
 
 -- Migrar Garden → Location (type = GARDEN)
+-- Garden tiene: id, name, capacity, description, active, createdAt, updatedAt
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'GARDEN', "capacity", 
-  COALESCE("description", NULL), 
-  COALESCE("active", true), 
-  COALESCE("createdAt", CURRENT_TIMESTAMP), 
-  COALESCE("updatedAt", CURRENT_TIMESTAMP)
+SELECT "id", "name", 'GARDEN', "capacity", "description", "active", "createdAt", "updatedAt"
 FROM "Garden";
 
 -- Crear índice unique en Location.name
