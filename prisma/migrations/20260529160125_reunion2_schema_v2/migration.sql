@@ -23,27 +23,23 @@ CREATE TABLE "Location" (
 );
 
 -- Migrar FreeArea → Location (type = FREE_AREA)
--- FreeArea tiene: id, name, capacity, description, active, createdAt, updatedAt
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'FREE_AREA', "capacity", "description", "active", "createdAt", "updatedAt"
+SELECT "id", "name", 'FREE_AREA', "capacity", NULL, "active", "createdAt", "updatedAt"
 FROM "FreeArea";
 
 -- Migrar DiningRoom → Location (type = DINING_ROOM)
--- DiningRoom tiene: id, name, capacity, description, active, createdAt, updatedAt
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'DINING_ROOM', "capacity", "description", "active", "createdAt", "updatedAt"
+SELECT "id", "name", 'DINING_ROOM', "capacity", NULL, "active", "createdAt", "updatedAt"
 FROM "DiningRoom";
 
 -- Migrar Hall → Location (type = HALL)
--- Hall tiene: id, name, capacity, type, active, createdAt, updatedAt (NO tiene description)
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
 SELECT "id", "name", 'HALL', "capacity", NULL, "active", "createdAt", "updatedAt"
 FROM "Hall";
 
 -- Migrar Garden → Location (type = GARDEN)
--- Garden tiene: id, name, capacity, description, active, createdAt, updatedAt
 INSERT INTO "Location" ("id", "name", "type", "capacity", "description", "active", "createdAt", "updatedAt")
-SELECT "id", "name", 'GARDEN', "capacity", "description", "active", "createdAt", "updatedAt"
+SELECT "id", "name", 'GARDEN', "capacity", NULL, "active", "createdAt", "updatedAt"
 FROM "Garden";
 
 -- Crear índice unique en Location.name
