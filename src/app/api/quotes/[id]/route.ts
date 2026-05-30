@@ -92,7 +92,7 @@ export async function PUT(
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             pricingMode: item.pricingMode || null,
-            scheduledDate: item.scheduledDate ? new Date(item.scheduledDate) : null,
+            scheduledDate: item.scheduledDate ? new Date(item.scheduledDate + "T12:00:00") : null,
             startTime: item.startTime || null,
             endTime: item.endTime || null,
             discountType: item.discountType || null,

@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
 
     if (startDate && endDate) {
       where.date = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
+        gte: new Date(startDate + "T12:00:00"),
+        lte: new Date(endDate + "T12:00:00"),
       }
     }
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     const expense = await prisma.expense.create({
       data: {
-        date: new Date(date),
+        date: new Date(date + "T12:00:00"),
         category,
         description,
         amount,

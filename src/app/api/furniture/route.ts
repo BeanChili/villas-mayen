@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     let currentValue = purchaseValue
     if (purchaseDate) {
       const years =
-        (new Date().getTime() - new Date(purchaseDate).getTime()) /
+        (new Date().getTime() - new Date(purchaseDate + "T12:00:00").getTime()) /
         (365 * 24 * 60 * 60 * 1000)
       const annualDepreciation = purchaseValue * (depreciationRate / 100)
       currentValue = Math.max(0, purchaseValue - annualDepreciation * years)
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
         rentalPrice: rentalPrice || 0,
         status: status || "BUENO",
         photo,
-        purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
+        purchaseDate: purchaseDate ? new Date(purchaseDate + "T12:00:00") : null,
         location,
         observations,
       },

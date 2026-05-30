@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Faltan parámetros" }, { status: 400 })
     }
 
-    const date = new Date(eventDate)
+    const date = new Date(eventDate + "T12:00:00")
     const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)
     const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)
 

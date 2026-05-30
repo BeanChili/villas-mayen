@@ -86,8 +86,8 @@ export async function POST(request: NextRequest) {
     const quote = await prisma.quote.create({
       data: {
         clientId,
-        eventDate: new Date(eventDate),
-        endDate: endDate ? new Date(endDate) : new Date(eventDate),
+        eventDate: new Date(eventDate + "T12:00:00"),
+        endDate: endDate ? new Date(endDate + "T12:00:00") : new Date(eventDate + "T12:00:00"),
         currency: currency || "GTQ",
         exchangeRate: exchangeRate || 1,
         guestCount: guestCount || null,
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
               quantity: item.quantity,
               unitPrice: Math.round(item.unitPrice * 100) / 100,
               pricingMode: item.pricingMode || null,
-              scheduledDate: item.scheduledDate ? new Date(item.scheduledDate) : null,
+              scheduledDate: item.scheduledDate ? new Date(item.scheduledDate + "T12:00:00") : null,
               startTime: item.startTime || null,
               endTime: item.endTime || null,
               discountType: item.discountType || null,

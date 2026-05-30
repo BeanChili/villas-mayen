@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
 
     if (from || to) {
       where.date = {}
-      if (from) where.date.gte = new Date(from)
-      if (to) where.date.lte = new Date(to)
+      if (from) where.date.gte = new Date(from + "T12:00:00")
+      if (to) where.date.lte = new Date(to + "T12:00:00")
     }
 
     const closings = await prisma.dailyClosing.findMany({
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Fecha requerida" }, { status: 400 })
     }
 
-    const targetDate = new Date(date)
+    const targetDate = new Date(date + "T12:00:00")
     const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
     const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59)
 
