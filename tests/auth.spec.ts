@@ -15,7 +15,7 @@ test.describe('Authentication', () => {
   test.describe('Login Page Load', () => {
     test('should display login form correctly', async ({ page }) => {
       // Verify login form elements are present
-      await expect(page.locator('text=Villas Mayen')).toBeVisible();
+      await expect(page.locator('text=Casa Villas Magen')).toBeVisible();
       await expect(page.locator('text=Ingresa tus credenciales')).toBeVisible();
       await expect(page.locator('#username')).toBeVisible();
       await expect(page.locator('#password')).toBeVisible();

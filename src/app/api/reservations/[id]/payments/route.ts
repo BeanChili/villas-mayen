@@ -33,13 +33,17 @@ export async function POST(
       )
     }
 
-    const reservation = await prisma.reservation.findUnique({ where: { id } })
+    const reservation = await prisma.reservation.findUnique({
+      where: { id },
+      include: { quote: { select: { totalAmount: true, currency: true, exchangeRate: true } } },
+    })
     if (!reservation) {
       return NextResponse.json({ error: "Reservacion no encontrada" }, { status: 404 })
     }
 
-    // Cap: no se puede pagar mas del monto pendiente
-    const currentPending = Math.max(0, reservation.totalAmount - reservation.paidAmount)
+    // Cap: no se puede pagar mas del monto pendiente (total desde Quote)
+    const totalAmount = reservation.quote?.totalAmount ?? 0
+    const currentPending = Math.max(0, totalAmount - reservation.paidAmount)
     if (currentPending <= 0) {
       return NextResponse.json(
         { error: "Esta reservacion ya esta completamente pagada" },
@@ -63,10 +67,10 @@ export async function POST(
 
       const allPayments = await tx.payment.findMany({ where: { reservationId: id } })
       const paidAmount = allPayments.reduce((sum: number, p: { amount: number }) => sum + p.amount, 0)
-      const pendingAmount = Math.max(0, reservation.totalAmount - paidAmount)
+      const pendingAmount = Math.max(0, totalAmount - paidAmount)
       const paymentStatus =
         paidAmount <= 0 ? "SIN_PAGO" :
-        paidAmount >= reservation.totalAmount ? "PAGADO" :
+        paidAmount >= totalAmount ? "PAGADO" :
         "PARCIAL"
 
       return tx.reservation.update({

@@ -8,13 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { clientTypeLabels } from "@/types"
+import { clientTypeLabels, clientCategoryLabels } from "@/types"
+import { getClientCategoryColor } from "@/lib/utils"
 import { Plus, Search, Users, Loader2, Edit, Trash2 } from "lucide-react"
 
 interface Client {
   id: string
   name: string
   clientType: string
+  category: string
   phone?: string
   email?: string
   address?: string
@@ -35,6 +37,7 @@ export default function ClientsPage() {
   const [formData, setFormData] = useState({
     name: "",
     clientType: "PARTICULAR",
+    category: "REGULAR",
     phone: "",
     email: "",
     address: "",
@@ -49,8 +52,8 @@ export default function ClientsPage() {
   async function fetchClients() {
     try {
       const response = await fetch("/api/clients")
-      const data = await response.json()
-      setClients(data)
+      const result = await response.json()
+      setClients(result.data || result || [])
     } catch (error) {
       console.error("Error fetching clients:", error)
     } finally {
@@ -71,13 +74,13 @@ export default function ClientsPage() {
         body: JSON.stringify(formData),
       })
       
-      if (response.ok) {
+      const result = await response.json()
+      if (response.ok && result.success) {
         setIsDialogOpen(false)
         fetchClients()
         resetForm()
       } else {
-        const error = await response.json()
-        alert(error.error || "Error al guardar cliente")
+        alert(result.error || "Error al guardar cliente")
       }
     } catch (error) {
       console.error("Error saving client:", error)
@@ -89,6 +92,7 @@ export default function ClientsPage() {
     setFormData({
       name: client.name,
       clientType: client.clientType,
+      category: client.category || "REGULAR",
       phone: client.phone || "",
       email: client.email || "",
       address: client.address || "",
@@ -103,8 +107,13 @@ export default function ClientsPage() {
     if (!confirm("¿Estás seguro de eliminar este cliente?")) return
     
     try {
-      await fetch(`/api/clients/${id}`, { method: "DELETE" })
-      fetchClients()
+      const response = await fetch(`/api/clients/${id}`, { method: "DELETE" })
+      const result = await response.json()
+      if (result.success) {
+        fetchClients()
+      } else {
+        alert(result.error || "Error al eliminar cliente")
+      }
     } catch (error) {
       console.error("Error deleting client:", error)
     }
@@ -114,6 +123,7 @@ export default function ClientsPage() {
     setFormData({
       name: "",
       clientType: "PARTICULAR",
+      category: "REGULAR",
       phone: "",
       email: "",
       address: "",
@@ -228,6 +238,7 @@ export default function ClientsPage() {
                   <tr className="border-b">
                     <th className="text-left p-3 font-medium">Nombre</th>
                     <th className="text-left p-3 font-medium">Tipo</th>
+                    <th className="text-left p-3 font-medium">Categoría</th>
                     <th className="text-left p-3 font-medium">Teléfono</th>
                     <th className="text-left p-3 font-medium">Email</th>
                     <th className="text-left p-3 font-medium">Registrado</th>
@@ -241,6 +252,18 @@ export default function ClientsPage() {
                       <td className="p-3">
                         <Badge variant="secondary">
                           {clientTypeLabels[client.clientType as keyof typeof clientTypeLabels] || client.clientType}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant="outline"
+                          style={{
+                            borderColor: getClientCategoryColor(client.category),
+                            color: getClientCategoryColor(client.category),
+                            backgroundColor: `${getClientCategoryColor(client.category)}15`,
+                          }}
+                        >
+                          {clientCategoryLabels[client.category as keyof typeof clientCategoryLabels] || client.category}
                         </Badge>
                       </td>
                       <td className="p-3 text-gray-600">{client.phone || "-"}</td>
@@ -288,22 +311,42 @@ export default function ClientsPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Tipo de Cliente</Label>
-              <Select
-                value={formData.clientType}
-                onValueChange={(value) => setFormData({ ...formData, clientType: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PARTICULAR">Particular</SelectItem>
-                  <SelectItem value="EMPRESA">Empresa</SelectItem>
-                  <SelectItem value="IGLESIA">Iglesia</SelectItem>
-                  <SelectItem value="INSTITUCION">Institución</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo de Cliente</Label>
+                <Select
+                  value={formData.clientType}
+                  onValueChange={(value) => setFormData({ ...formData, clientType: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PARTICULAR">Particular</SelectItem>
+                    <SelectItem value="EMPRESA">Empresa</SelectItem>
+                    <SelectItem value="IGLESIA">Iglesia</SelectItem>
+                    <SelectItem value="INSTITUCION">Institución</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoría</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BUENO">Bueno</SelectItem>
+                    <SelectItem value="REGULAR">Regular</SelectItem>
+                    <SelectItem value="DELICADO">Delicado</SelectItem>
+                    <SelectItem value="EN_OBSERVACION">En Observación</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

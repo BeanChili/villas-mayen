@@ -1,4 +1,4 @@
-import { test, expect, loginAsAdmin, loginAs } from "./helpers";
+import { test, expect, loginAsAdmin, loginAs, selectClientFromDropdown } from "./helpers";
 import { generateRandomName, generateRandomEmail, generateRandomPhone, getFutureDate } from "./helpers";
 
 /**
@@ -19,97 +19,87 @@ test.describe('End-to-End User Journeys', () => {
     await expect(page.locator('text=Bienvenido')).toBeVisible();
     console.log('✓ Dashboard loaded');
 
-    // Step 2: Create a new client
+    // Step 2: Create a new client with category
     await page.click('nav a:has-text("Clientes")');
     await page.waitForURL('/clients');
     await page.waitForLoadState('networkidle');
 
     await page.locator('button:has-text("Nuevo Cliente")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     const clientName = generateRandomName('ClienteE2E');
     const dialog = page.locator('[role="dialog"]');
     await dialog.locator('input').nth(0).fill(clientName);
-    await dialog.locator('[role="combobox"]').click();
+    // Select client type
+    await dialog.locator('[role="combobox"]').nth(0).click();
     await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
     await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Empresa' }).first().click();
+    // Select category
+    await dialog.locator('[role="combobox"]').nth(1).click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Bueno' }).first().click();
     await dialog.locator('input[type="email"]').fill(generateRandomEmail());
     await dialog.locator('input').nth(1).fill(generateRandomPhone());
     await dialog.locator('button[type="submit"]').click();
-    await page.waitForTimeout(1000);
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
 
     await expect(page.locator(`text=${clientName}`)).toBeVisible();
     console.log('✓ Client created:', clientName);
 
-    // Step 3: Create a reservation for the client
-    await page.click('nav a:has-text("Reservaciones")');
-    await page.waitForURL('/reservations');
-    await page.waitForLoadState('networkidle');
-
-    await page.locator('button:has-text("Nueva Reservación")').click();
-    await page.waitForTimeout(500);
-
-    // Select client
-    const resDialog = page.locator('[role="dialog"]');
-    const clientSelect = resDialog.locator('[role="combobox"]').first();
-    await clientSelect.click();
-    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-    await page.locator('[role="listbox"] [role="option"]').first().click();
-
-    // Select location type (already defaults to HALL/Salón — just pick the location)
-    const locationSelect = resDialog.locator('[role="combobox"]').nth(2);
-    await locationSelect.click();
-    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-    await page.locator('[role="listbox"] [role="option"]').first().click();
-
-    // Set dates
-    const startDate = getFutureDate(21);
-    const endDate = getFutureDate(22);
-
-    await resDialog.locator('input[type="date"]').first().fill(startDate);
-    await resDialog.locator('input[type="date"]').nth(1).fill(endDate);
-
-    // Select schedule
-    await resDialog.locator('button:has-text("Mañana")').click();
-
-    await resDialog.locator('button[type="submit"]').click();
-    // Wait for dialog to close
-    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
-    await page.waitForTimeout(500);
-    console.log('✓ Reservation created');
-
-    // Step 4: Create a quote
+    // Step 3: Create a quote for the client
     await page.click('nav a:has-text("Cotizaciones")');
     await page.waitForURL('/quotes');
     await page.waitForLoadState('networkidle');
 
     await page.locator('button:has-text("Nueva Cotización")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     const quoteDialog = page.locator('[role="dialog"]');
 
     // Fill event date
     const eventDateInput = quoteDialog.locator('input[type="date"]').first();
-    if (await eventDateInput.isVisible()) {
-      await eventDateInput.fill(getFutureDate(30));
-    }
+    await eventDateInput.fill(getFutureDate(30));
 
     // Select a client
-    const quoteClientSelect = quoteDialog.locator('[role="combobox"]').first();
-    if (await quoteClientSelect.isVisible()) {
-      await quoteClientSelect.click();
-      await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-      await page.locator('[role="listbox"] [role="option"]').first().click();
+    await selectClientFromDropdown(page, clientName, quoteDialog);
+
+    // Add a space
+    await quoteDialog.locator('button:has-text("Agregar")').first().click();
+    await page.waitForTimeout(300);
+    // Select location type
+    const spaceTypeSelect = quoteDialog.locator('[role="combobox"]').filter({ hasText: /Salón|Seleccionar/ }).first();
+    await spaceTypeSelect.click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Salón' }).first().click();
+    await page.waitForTimeout(300);
+    // Select specific location
+    const locSelect = quoteDialog.locator('[role="combobox"]').filter({ hasText: /Seleccionar/ }).first();
+    await locSelect.click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').first().click();
+
+    // Add a product (e.g. Mobiliario)
+    await quoteDialog.locator('button:has-text("Mobiliario")').click();
+    await page.waitForTimeout(300);
+    const productBtn = quoteDialog.locator('button[type="button"]').filter({ hasText: 'Silla' }).first();
+    if (await productBtn.isVisible().catch(() => false)) {
+      await productBtn.click();
     }
 
-    // Select schedule
-    await quoteDialog.locator('button:has-text("Mañana")').click();
-
+    // Submit
     await quoteDialog.locator('button[type="submit"]').click();
-    // Wait for dialog to close
-    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
     await page.waitForTimeout(500);
     console.log('✓ Quote created');
+
+    // Step 4: Send the quote (BORRADOR → ENVIADA)
+    const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
+    if (await borradorRow.isVisible().catch(() => false)) {
+      const sendButton = borradorRow.locator('button[title="Enviar"]').first();
+      await sendButton.click();
+      await page.waitForTimeout(500);
+      console.log('✓ Quote sent');
+    }
 
     // Step 5: Check inventory
     await page.click('nav a:has-text("Inventario")');
@@ -123,7 +113,7 @@ test.describe('End-to-End User Journeys', () => {
     await page.waitForLoadState('networkidle');
 
     await page.locator('button:has-text("Nuevo Gasto")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     const expDialog = page.locator('[role="dialog"]');
     await expDialog.locator('[role="combobox"]').click();
@@ -133,7 +123,6 @@ test.describe('End-to-End User Journeys', () => {
     await expDialog.locator('input[type="number"]').fill('500');
 
     await expDialog.locator('button[type="submit"]').click();
-    // Wait for dialog to close
     await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
     await page.waitForTimeout(500);
     console.log('✓ Expense added');
@@ -152,69 +141,6 @@ test.describe('End-to-End User Journeys', () => {
   });
 
   /**
-   * RESERVATION TO EVENT CLOSING JOURNEY
-   * Tests the complete lifecycle from reservation to event closing
-   */
-  test('reservation to event closing lifecycle', async ({ page }) => {
-    await loginAsAdmin(page);
-
-    // Step 1: Create client
-    await page.click('nav a:has-text("Clientes")');
-    await page.waitForURL('/clients');
-
-    const clientName = generateRandomName('Evento');
-    await page.locator('button:has-text("Nuevo Cliente")').click();
-    await page.waitForTimeout(500);
-    const clientDialog = page.locator('[role="dialog"]');
-    await clientDialog.locator('input').nth(0).fill(clientName);
-    await clientDialog.locator('button[type="submit"]').click();
-    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
-    await page.waitForTimeout(500);
-    console.log('✓ Client created for event');
-
-    // Step 2: Create reservation
-    await page.click('nav a:has-text("Reservaciones")');
-    await page.waitForURL('/reservations');
-
-    await page.locator('button:has-text("Nueva Reservación")').click();
-    await page.waitForTimeout(500);
-
-    const resDialog = page.locator('[role="dialog"]');
-    await resDialog.locator('[role="combobox"]').first().click();
-    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-    await page.locator('[role="listbox"] [role="option"]').first().click();
-
-    // Location — defaults to HALL, pick a specific location (combobox nth(2))
-    const locationSelect = resDialog.locator('[role="combobox"]').nth(2);
-    await locationSelect.click();
-    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-    await page.locator('[role="listbox"] [role="option"]').first().click();
-
-    // Set dates (some time in past for this test to show as finished, or in future)
-    const pastDate = new Date();
-    pastDate.setDate(pastDate.getDate() - 5);
-    const startDateStr = pastDate.toISOString().split('T')[0];
-    pastDate.setDate(pastDate.getDate() + 2);
-    const endDateStr = pastDate.toISOString().split('T')[0];
-
-    await resDialog.locator('input[type="date"]').first().fill(startDateStr);
-    await resDialog.locator('input[type="date"]').nth(1).fill(endDateStr);
-    await resDialog.locator('button:has-text("Mañana")').click();
-
-    await resDialog.locator('button[type="submit"]').click();
-    // Wait for dialog to close
-    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
-    await page.waitForTimeout(500);
-    console.log('✓ Reservation created');
-
-    // Step 3: Navigate to events to check closing options
-    await page.click('nav a:has-text("Eventos")');
-    await page.waitForURL('/events');
-    await page.waitForLoadState('networkidle');
-    console.log('✓ Event closing page accessed');
-  });
-
-  /**
    * QUOTE APPROVAL WORKFLOW
    * Tests creating a quote and moving it through approval states
    */
@@ -224,9 +150,14 @@ test.describe('End-to-End User Journeys', () => {
     // Step 1: Create client
     await page.click('nav a:has-text("Clientes")');
     await page.locator('button:has-text("Nuevo Cliente")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
     const clientDialog = page.locator('[role="dialog"]');
-    await clientDialog.locator('input').nth(0).fill(generateRandomName('Cotizacion'));
+    const clientName = generateRandomName('Cotizacion');
+    await clientDialog.locator('input').nth(0).fill(clientName);
+    // Select category
+    await clientDialog.locator('[role="combobox"]').nth(1).click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Regular' }).first().click();
     await clientDialog.locator('button[type="submit"]').click();
     await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
     await page.waitForTimeout(500);
@@ -237,60 +168,170 @@ test.describe('End-to-End User Journeys', () => {
     await page.waitForLoadState('networkidle');
 
     await page.locator('button:has-text("Nueva Cotización")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     const quoteDialog = page.locator('[role="dialog"]');
-
     const eventDateInput = quoteDialog.locator('input[type="date"]').first();
-    if (await eventDateInput.isVisible()) {
-      await eventDateInput.fill(getFutureDate(45));
-    }
+    await eventDateInput.fill(getFutureDate(45));
 
     // Select client
-    const quoteClientSelect = quoteDialog.locator('[role="combobox"]').first();
-    if (await quoteClientSelect.isVisible()) {
-      await quoteClientSelect.click();
-      await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-      await page.locator('[role="listbox"] [role="option"]').first().click();
-    }
+    await selectClientFromDropdown(page, clientName, quoteDialog);
 
-    // Select location type → Salón
-    const locTypeSelect = quoteDialog.locator('[role="combobox"]').nth(1);
-    if (await locTypeSelect.isVisible()) {
-      await locTypeSelect.click();
-      await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-      await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Salón' }).first().click();
-      await page.waitForTimeout(300);
-    }
+    // Add space
+    await quoteDialog.locator('button:has-text("Agregar")').first().click();
+    await page.waitForTimeout(300);
+    const spaceTypeSelect = quoteDialog.locator('[role="combobox"]').filter({ hasText: /Salón|Seleccionar/ }).first();
+    await spaceTypeSelect.click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Salón' }).first().click();
+    await page.waitForTimeout(300);
+    const locSelect = quoteDialog.locator('[role="combobox"]').filter({ hasText: /Seleccionar/ }).first();
+    await locSelect.click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').first().click();
 
-    // Select schedule → Mañana
-    await quoteDialog.locator('button:has-text("Mañana")').click();
-
+    // Submit
     await quoteDialog.locator('button[type="submit"]').click();
-    await page.waitForTimeout(1000);
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
     console.log('✓ Quote created as draft');
 
-    // Step 3: Change status to Enviada — click the Send icon button in the BORRADOR row
+    // Step 3: Change status to Enviada
     const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
     const sendVisible = await borradorRow.isVisible().catch(() => false);
     if (sendVisible) {
-      // The Send button is the second button in the row's actions (after Eye)
-      const sendButton = borradorRow.locator('button').nth(1);
+      const sendButton = borradorRow.locator('button[title="Enviar"]').first();
       await sendButton.click();
       await page.waitForTimeout(500);
       console.log('✓ Quote marked as sent');
     }
 
-    // Step 4: Approve the quote — click the Check icon button in the ENVIADA row
-    const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada' }).first();
+    // Step 4: Approve the quote (ENVIADA → CONFIRMADA)
+    const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first();
     const enviadaVisible = await enviadaRow.isVisible().catch(() => false);
     if (enviadaVisible) {
-      // The Approve button is the second button in the row (after Eye)
-      const approveButton = enviadaRow.locator('button').nth(1);
+      const approveButton = enviadaRow.locator('button[title="Confirmar"]').first();
       await approveButton.click();
       await page.waitForTimeout(500);
-      console.log('✓ Quote approved');
+      console.log('✓ Quote approved and reservation created');
     }
+  });
+
+  /**
+   * CATALOG WORKFLOW
+   * Tests creating locations and products in the catalog
+   */
+  test('catalog workflow', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // Step 1: Create a location
+    await page.goto('/catalog/locations');
+    await page.waitForURL('/catalog/locations');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('button:has-text("Nueva Ubicación")').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
+
+    const locDialog = page.locator('[role="dialog"]');
+    const locName = generateRandomName('Ubicacion');
+    await locDialog.locator('input').nth(0).fill(locName);
+    await locDialog.locator('[role="combobox"]').click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Terraza' }).first().click();
+    await locDialog.locator('input[type="number"]').nth(0).fill('60');
+    await locDialog.locator('input[type="number"]').nth(1).fill('2000');
+    await locDialog.locator('button[type="submit"]').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
+
+    await expect(page.locator(`text=${locName}`)).toBeVisible();
+    console.log('✓ Location created:', locName);
+
+    // Step 2: Create a product
+    await page.goto('/catalog/products');
+    await page.waitForURL('/catalog/products');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('button:has-text("Nuevo Producto")').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
+
+    const prodDialog = page.locator('[role="dialog"]');
+    const prodName = generateRandomName('Producto');
+    await prodDialog.locator('input').nth(0).fill(prodName);
+    await prodDialog.locator('[role="combobox"]').nth(0).click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Mobiliario' }).first().click();
+    await prodDialog.locator('input[type="number"]').nth(0).fill('150');
+    await prodDialog.locator('input[type="number"]').nth(1).fill('50');
+    await prodDialog.locator('[role="combobox"]').nth(1).click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: 'Pieza' }).first().click();
+
+    await prodDialog.locator('button[type="submit"]').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
+
+    await expect(page.locator(`text=${prodName}`)).toBeVisible();
+    console.log('✓ Product created:', prodName);
+  });
+
+  /**
+   * ROOMS WORKFLOW
+   * Tests creating building, floor, and room via API + UI
+   */
+  test('rooms workflow', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // Step 1: Create building via API
+    const buildingRes = await page.request.post('/api/buildings', {
+      data: { name: generateRandomName('Edificio') },
+    });
+    expect(buildingRes.ok()).toBe(true);
+    const buildingData = await buildingRes.json();
+    const buildingId = buildingData.data.id;
+    console.log('✓ Building created via API');
+
+    // Step 2: Create floor via API
+    const floorRes = await page.request.post('/api/floors', {
+      data: { buildingId, level: 1 },
+    });
+    expect(floorRes.ok()).toBe(true);
+    const floorData = await floorRes.json();
+    const floorId = floorData.data.id;
+    console.log('✓ Floor created via API');
+
+    // Step 3: Create room via UI
+    await page.goto('/rooms');
+    await page.waitForURL('/rooms');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('button:has-text("Nueva Habitación")').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
+
+    const roomDialog = page.locator('[role="dialog"]');
+    // Select building
+    await roomDialog.locator('[role="combobox"]').nth(0).click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    // Find the newly created building in the list
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: new RegExp(buildingData.data.name) }).first().click();
+    await page.waitForTimeout(300);
+    // Select floor
+    await roomDialog.locator('[role="combobox"]').nth(1).click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.locator('[role="listbox"] [role="option"]').filter({ hasText: /Piso 1/ }).first().click();
+
+    const roomNumber = `101-${Date.now()}`;
+    await roomDialog.locator('input').nth(0).fill(roomNumber);
+    await roomDialog.locator('input[type="number"]').nth(0).fill('4');
+    await roomDialog.locator('input[type="number"]').nth(1).fill('800');
+    await roomDialog.locator('input[type="number"]').nth(2).fill('200');
+
+    await roomDialog.locator('button[type="submit"]').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
+
+    await expect(page.locator(`text=${roomNumber}`)).toBeVisible();
+    console.log('✓ Room created:', roomNumber);
   });
 
   /**
@@ -308,7 +349,7 @@ test.describe('End-to-End User Journeys', () => {
     const initialCount = await page.locator('tbody tr').count();
 
     await page.locator('button:has-text("Nuevo Artículo")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     const invDialog = page.locator('[role="dialog"]');
     const invNumber = `INV-${Date.now()}`;
@@ -321,7 +362,8 @@ test.describe('End-to-End User Journeys', () => {
     await invDialog.locator('input[type="number"]').nth(1).fill('10');
 
     await invDialog.locator('button[type="submit"]').click();
-    await page.waitForTimeout(1000);
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
     console.log('✓ Furniture added');
 
     // Verify count increased
@@ -337,11 +379,12 @@ test.describe('End-to-End User Journeys', () => {
 
     // Step 3: Edit furniture
     await page.locator('[data-testid="edit-furniture-btn"]').first().click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
     const editDialog = page.locator('[role="dialog"]');
     await editDialog.locator('input').nth(1).fill('Sillas para eventos - Actualizado');
     await editDialog.locator('button[type="submit"]').click();
-    await page.waitForTimeout(1000);
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
     console.log('✓ Furniture updated');
   });
 
@@ -356,22 +399,28 @@ test.describe('End-to-End User Journeys', () => {
     await page.waitForURL('/clients');
     await page.waitForLoadState('networkidle');
 
-    // Step 1: Create multiple clients
+    // Step 1: Create multiple clients with categories
     const clients = [
-      { name: 'Cliente Particular', type: 'Particular' },
-      { name: 'Cliente Empresa', type: 'Empresa' },
-      { name: 'Cliente Iglesia', type: 'Iglesia' },
+      { name: 'Cliente Particular', type: 'Particular', category: 'Bueno' },
+      { name: 'Cliente Empresa', type: 'Empresa', category: 'Regular' },
+      { name: 'Cliente Iglesia', type: 'Iglesia', category: 'Delicado' },
     ];
 
     for (const client of clients) {
       await page.locator('button:has-text("Nuevo Cliente")').click();
-      await page.waitForTimeout(500);
+      await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
       const clientDialog = page.locator('[role="dialog"]');
       await clientDialog.locator('input').nth(0).fill(client.name);
-      await clientDialog.locator('[role="combobox"]').click();
+      // Select type
+      await clientDialog.locator('[role="combobox"]').nth(0).click();
       await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
       await page.locator('[role="listbox"] [role="option"]').filter({ hasText: client.type }).first().click();
+      // Select category
+      await clientDialog.locator('[role="combobox"]').nth(1).click();
+      await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+      await page.locator('[role="listbox"] [role="option"]').filter({ hasText: client.category }).first().click();
       await clientDialog.locator('button[type="submit"]').click();
+      await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
       await page.waitForTimeout(500);
     }
     console.log('✓ Multiple clients created');
@@ -386,11 +435,12 @@ test.describe('End-to-End User Journeys', () => {
     await page.fill('input[placeholder*="Buscar"]', '');
     await page.waitForTimeout(500);
     await page.locator('[data-testid="edit-client-btn"]').first().click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
     const editDialog = page.locator('[role="dialog"]');
     await editDialog.locator('input').nth(0).fill('Cliente Particular - Editado');
     await editDialog.locator('button[type="submit"]').click();
-    await page.waitForTimeout(1000);
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
     console.log('✓ Client edited');
 
     // Step 4: Verify stats updated
@@ -408,17 +458,16 @@ test.describe('End-to-End User Journeys', () => {
     const futureDate = getFutureDate(90);
     console.log('Future date:', futureDate);
 
-    await page.click('nav a:has-text("Reservaciones")');
-    await page.waitForURL('/reservations');
+    await page.click('nav a:has-text("Cotizaciones")');
+    await page.waitForURL('/quotes');
     await page.waitForLoadState('networkidle');
 
-    await page.locator('button:has-text("Nueva Reservación")').click();
-    await page.waitForTimeout(500);
+    await page.locator('button:has-text("Nueva Cotización")').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
-    const resDialog = page.locator('[role="dialog"]');
-    await resDialog.locator('input[type="date"]').first().fill(futureDate);
-    await resDialog.locator('input[type="date"]').nth(1).fill(getFutureDate(91));
-    console.log('✓ Future dates accepted');
+    const quoteDialog = page.locator('[role="dialog"]');
+    await quoteDialog.locator('input[type="date"]').first().fill(futureDate);
+    console.log('✓ Future dates accepted in quote');
 
     // Close dialog before calendar navigation
     await page.keyboard.press('Escape');
@@ -426,12 +475,16 @@ test.describe('End-to-End User Journeys', () => {
     await page.waitForTimeout(300);
 
     // Test different month navigation using data-testid
-    await page.locator('[data-testid="next-month"]').click();
-    await page.waitForTimeout(500);
-    await page.locator('[data-testid="next-month"]').click();
-    await page.waitForTimeout(500);
-    await page.locator('[data-testid="prev-month"]').click();
-    await page.waitForTimeout(500);
+    await page.click('nav a:has-text("Reservaciones")');
+    await page.waitForURL('/reservations');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('[data-testid="next-period"]').click();
+    await page.waitForLoadState('networkidle');
+    await page.locator('[data-testid="next-period"]').click();
+    await page.waitForLoadState('networkidle');
+    await page.locator('[data-testid="prev-period"]').click();
+    await page.waitForLoadState('networkidle');
     console.log('✓ Calendar navigation works');
 
     // Test today's date in expenses
@@ -439,7 +492,7 @@ test.describe('End-to-End User Journeys', () => {
     await page.waitForURL('/expenses');
 
     await page.locator('button:has-text("Nuevo Gasto")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     const today = new Date().toISOString().split('T')[0];
     const expDialog = page.locator('[role="dialog"]');
@@ -491,11 +544,12 @@ test.describe('End-to-End User Journeys', () => {
 
     const testClient = generateRandomName('Persistencia');
     await page.locator('button:has-text("Nuevo Cliente")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
     const clientDialog = page.locator('[role="dialog"]');
     await clientDialog.locator('input').nth(0).fill(testClient);
     await clientDialog.locator('button[type="submit"]').click();
-    await page.waitForTimeout(1000);
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
+    await page.waitForTimeout(500);
 
     // Navigate away and back
     await page.click('nav a:has-text("Dashboard")');
@@ -521,7 +575,7 @@ test.describe('End-to-End User Journeys', () => {
     await page.waitForURL('/clients');
     await page.waitForLoadState('networkidle');
     await page.locator('button:has-text("Nuevo Cliente")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
     await page.locator('[role="dialog"]').locator('button[type="submit"]').click();
     await page.waitForTimeout(500);
 
@@ -558,6 +612,10 @@ test.describe('End-to-End User Journeys', () => {
       { path: '/quotes', name: 'Quotes' },
       { path: '/inventory', name: 'Inventory' },
       { path: '/expenses', name: 'Expenses' },
+      { path: '/catalog/locations', name: 'Catalog Locations' },
+      { path: '/catalog/products', name: 'Catalog Products' },
+      { path: '/rooms', name: 'Rooms' },
+      { path: '/reports/closings', name: 'Closings' },
     ];
 
     for (const p of pages) {
@@ -588,6 +646,10 @@ test.describe('Smoke Tests', () => {
       '/expenses',
       '/events',
       '/settings',
+      '/catalog/locations',
+      '/catalog/products',
+      '/rooms',
+      '/reports/closings',
     ];
 
     for (const path of pages) {
@@ -607,21 +669,21 @@ test.describe('Smoke Tests', () => {
  * REGRESSION TESTS - Tests for known issues
  */
 test.describe('Regression Tests', () => {
-  test('calendar displays reservations correctly after navigation', async ({ page }) => {
+  test('calendar displays quotes correctly after navigation', async ({ page }) => {
     await loginAsAdmin(page);
 
     await page.click('nav a:has-text("Reservaciones")');
     await page.waitForURL('/reservations');
     await page.waitForLoadState('networkidle');
 
-    // Navigate months using data-testid
-    await page.locator('[data-testid="next-month"]').click();
-    await page.waitForTimeout(500);
-    await page.locator('[data-testid="prev-month"]').click();
-    await page.waitForTimeout(500);
+    // Navigate periods using data-testid
+    await page.locator('[data-testid="next-period"]').click();
+    await page.waitForLoadState('networkidle');
+    await page.locator('[data-testid="prev-period"]').click();
+    await page.waitForLoadState('networkidle');
 
     // Calendar should still display
-    await expect(page.locator('text=Dom')).toBeVisible();
+    await expect(page.locator('text=Dom').first()).toBeVisible();
     console.log('✓ Calendar navigation works');
   });
 
@@ -632,18 +694,19 @@ test.describe('Regression Tests', () => {
     await page.waitForURL('/clients');
     await page.waitForLoadState('networkidle');
     await page.locator('button:has-text("Nuevo Cliente")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     const dialog = page.locator('[role="dialog"]');
     await dialog.locator('input').nth(0).fill('Test Name');
 
     // Click cancel inside the dialog to avoid overlay issues
     await dialog.locator('button:has-text("Cancelar")').click();
+    await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 10000 }).catch(() => page.keyboard.press('Escape'));
     await page.waitForTimeout(500);
 
     // Open again
     await page.locator('button:has-text("Nuevo Cliente")').click();
-    await page.waitForTimeout(500);
+    await page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 5000 });
 
     // Form should be empty
     const nameInput = page.locator('[role="dialog"]').locator('input').nth(0);

@@ -1,0 +1,157 @@
+﻿1. En el calendario, ¿se ven solo las cotizaciones confirmadas (las que ya pagaron anticipo) o también las que están en borrador y las enviadas? Porque si se ven las borradores, dos personas podrían cotizar el mismo espacio el mismo día.
+
+Respuesta: Se ven todas las cotizaciones, en borrador, enviadas, confirmadas, no confirmadas
+Una vez no esten confirmadas, se puede cotizar, y avisar al cliente que hay otro cliente que tiene esa misma fecha y lugar pero no ha confirmado.
+
+2. ¿Una cotización tiene fecha de vencimiento? Vi que en el formato actual dice "Validez", ¿eso lo ponemos nosotros o lo carga quien cotiza?
+Respuesta: Básicamente es un valor fijo, puede ir fijo a 15 días hábiles según veo.
+
+3. ¿Un mismo cliente puede tener varias cotizaciones abiertas al mismo tiempo? Por ejemplo, cotizar dos fechas distintas.
+Respuesta:Si un cliente puede tener muchas reservas o cotizaciones al mismo tiempo
+
+MÚLTIPLES ESPACIOS EN UN MISMO EVENTO
+
+4. Cuando un evento usa varios espacios (por ejemplo Salón + Jardín + Habitaciones), ¿todos comparten el mismo horario o cada espacio puede tener su propia hora de inicio y fin?
+Respuesta:Cada espacio puede tener su propio horario, o se puede preguntar al cliente si todo al mismo tiempo, puede ser dinámico según requerimiento de los clientes
+
+5. ¿Hay combinaciones que no se puedan hacer? Por ejemplo, ¿se puede reservar solo habitaciones sin salón, o siempre van juntas?
+Respuesta:Se puede reservar habitaciones sin salon si solo quieren hospedaje
+
+6. ¿El precio de cada espacio se suma directo?
+Respuesta: Si se suma directo, puede ser precio por persona PAX, o bien precio fijo por espacio y tiempo, se debe seleccionar en el detalle de la cotización de cada elemento,
+y en la ficha del activo puede tener precio por persona o precio por espacio para que el cliente pueda seleccionar.
+
+
+COMIDAS Y MENÚS POR DÍA
+
+7. En un mismo día, ¿se pueden pedir varias comidas? Por ejemplo desayuno + coffee break + almuerzo + cena, ¿o se elige una sola?
+Respuesta: Si, en un día se pueden tener varios tiempos de comida, y cada uno con su numero de menú seleccionado.
+
+8. ¿Qué es el "No. de Menú Solicitado"? ¿Es un código de un menú pre-armado (tipo "Menú Ejecutivo #3") o es simplemente la cantidad de personas?
+Respuesta: Es el número de platillo de menu a seleccionar, aparte lleva la cantidad Tambien en el detalle y fecha y hora de cada elemento agregado
+
+9. ¿Un menú es un solo platillo o es un combo (entrada + plato fuerte + postre + bebida)? ¿El precio es por persona?
+Respuesta: Un menú es un solo elemento, si el precio es por persona ó plato digamos unitario.
+
+ESTADOS DE LA COTIZACIÓN
+
+10. El nuevo flujo dice: Borrador → Enviada → No confirmada → Confirmada → En ejecución → Finalizada. ¿"No confirmada" significa que el cliente dijo que no, o es automático porque pasó mucho tiempo sin respuesta?
+Respuesta: Es correcto no confirmado pasa luego que vence 15 días la cotización, hay que llamar para ver su respuesta
+
+11. ¿Se puede reenviar una cotización que quedó "No confirmada"?
+Respuesta: No, debe generar mejor una nueva cotización
+
+12. ¿"En ejecución" se pone solo cuando llega el día del evento o debe marcarse manualmente?
+Respuesta: Si es correcto es cuando en el día ya llega la fecha de los eventos y hora para tener el dashboard del día con horarios y clientes que ocuparán para que esta vista la puedan tener los empleados
+
+HORARIOS CON HORA EXACTA
+
+13. Ahora piden hora de inicio y hora fin (ej: 14:30 a 16:45). ¿Esto reemplaza los bloques de Mañana/Tarde/Noche que teníamos antes?
+Respuesta, No no los remplaza, solamente es información que debe ir de cada reservación digamos salon 1: 1pm a 3pm, kuego Jardin de 3pm a 5pm, etc
+
+14. ¿Cualquier hora y minuto vale o solo horas en punto?
+Respuesta: Solo horas en punto
+
+PRECIOS DE LOS ESPACIOS
+
+15. Las habitaciones, ¿siguen siendo precio por noche o también pueden ser por persona?
+Respuesta: Puede tener ambos precios, al hacer la cotización debe seleccionar que precio para cotizar
+
+AMENIDADES Y PARQUEO
+
+16. ¿El parqueo es una amenidad más como las demás? ¿Se cobra por día o por hora?
+Respuesta: De momento es una amenidad gratuita al cotizar el evento, con el tiempo podría tener un precio por hora o por día por cada carro a parquear
+
+17. Hay amenidades "sin costo". ¿Hay servicios que a veces se cobran y a veces no, de qué depende?
+Si pueden haber amenidades sin costo como parque, wifi, pero estas pueden tener valor 0 en su precio de venta, probablemente debamos seleccionar al llenar la ficha de producto cuales si y cuales no
+
+MONEDA Y TIPO DE CAMBIO
+
+18. ¿Quién pone y actualiza el tipo de cambio? ¿Debería haber una sección para actualizarlo manualmente?
+Respuesta: Es actualizada manualmente la taza, correcto debe llevar un area
+
+19. ¿En una misma cotización se pueden mezclar quetzales y dólares o todo va en una sola moneda?
+Respuesta: No solamente una moneda lleva la cotización
+
+20. Si un cliente paga en dólares, ¿el pago se registra en dólares o se convierte a quetzales?
+Respuesta: Se registra en dólares, dado que tienen cuenta en dólares al parecer
+
+CATEGORIZACIÓN DE CLIENTES
+
+21. La categoría de cliente (Bueno, Regular, Delicado, En Observación), ¿es solo para tenerla de referencia o afecta algo como precios o condiciones?
+Respuesta: Si solamente de referencia, no afecta el precio
+
+DESCUENTOS
+
+22. El descuento, ¿es porcentaje sobre el total, monto fijo, o los dos? ¿Se aplica al total general o debe ser individual por ítem?
+Respuesta: Puede ser aplicado porcentual o valor fijo, solamente al final de la cotización
+
+HABITACIONES
+
+23. ¿Las habitaciones se reservan sólo como parte de un evento o también para hospedaje independiente?
+Respuesta: Puede ser hospedaje independiente
+
+24. Los estados actuales son: Disponible, Reservada, Ocupada, Mantenimiento. ¿Está bien así o falta alguno?
+Respuesta:Estan bien esos estados de inicio
+
+EMAIL A CONTABILIDAD
+
+25. Cuando se finaliza un evento, ¿qué debe llevar el correo a contabilidad?
+Respuesta:
+Debe de llevar la liquidación del eventom que haya pagado y que haya devuelto todo
+
+26. ¿Se envía automático al marcar "Finalizada" o hay un botón para enviarlo manualmente?
+Respuesta:Puede ser enviada automaticamente al liquidar evento,  y bien un botón de reenviar al cliente
+
+27. ¿A qué correo o correos se manda?
+Respuesta: Pendiente de preguntar al cliente
+
+CIERRES DIARIOS Y SEMANALES
+
+28. ¿Qué debe tener cada cierre? ¿Un resumen de los eventos del día/semana, lo cobrado, lo pendiente, los insumos devueltos?
+Respuesta: Si que sea hayan cobrado al 100% y los detalles de la órden si hubieron o no inconvenientes en la liquidación
+
+29. ¿Se genera automático cada cierto tiempo o debe ser un botón para descargarlo?
+Respuesta: Puede ser ambos
+
+CANTIDAD DE ASISTENTES
+
+30. La cantidad de personas, ¿afecta algo más aparte del cálculo? Por ejemplo, ¿define cuántas mesas y sillas se necesitan o el precio de ciertos espacios?
+Respuesta: Esta información se detalla en el detalle de la cotizació, no define mobiliario automaticamente.
+
+ROLES Y PERMISOS
+
+31. Necesitamos que nos digan qué roles necesitan y qué puede hacer cada uno. Las funciones del sistema se agrupan en estas áreas:
+
+- Cotizaciones: crear, enviar, modificar, confirmar, registrar pagos, aplicar descuentos, generar PDF
+- Eventos: marcar en ejecución, finalizar, liquidar, cierre diario/semanal, cierre de evento (retorno de mobiliario y daños)
+- Catálogos: ubicaciones y precios, menús, amenidades y parqueo, cristalería y vajilla, tipo de cambio
+- Inventario: mobiliario (agregar, editar, dar de baja)
+- Clientes: registrar, editar, categorizar (Bueno, Regular, Delicado, En Observación), ver historial
+- Finanzas: registrar gastos, ver reportes financieros
+- Calendario: ver y gestionar eventos
+- Sistema: gestionar usuarios, configurar permisos
+
+Respuesta: Pendiente al finalizar el sistema general ya se definen los roles, pero si se brindará esta información
+
+¿Qué roles necesitan? (por ejemplo: alguien que solo vea, alguien que cotice, alguien que maneje finanzas, alguien que administre todo, etc.)
+Respuesta: Pendiente al finalizar el sistema general ya se definen los roles, pero si se brindará esta información
+
+Para cada rol, ¿qué áreas de la lista de arriba puede ver, editar y eliminar?
+Respuesta: Pendiente al finalizar el sistema general ya se definen los roles, pero si se brindará esta información
+
+
+
+Respuestas del cliente:
+
+En la 11 debe contestar quw sí.
+
+14 la respuesta debe ser hora con minutos.ej 13.15
+
+Rep.18 en la cot se debe preseleccionar el tipo de moneda. Se hacen cotizacionen e $ y en Q.
+
+Rep 20 Al momento de pagar se cobra en Quetzales al tipo de cambio del dia.
+
+Resp 22. El descuento debe ser por Item y no en el total.
+
+Rep 26 con botón porque algunas veces habrá que enviarla al cliente para que nos de su aprobación y si hay alguna diferencia hay que hacer los cambios.

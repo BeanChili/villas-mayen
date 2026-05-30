@@ -11,7 +11,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
     }
 
     const client = await prisma.client.findUnique({
@@ -32,14 +32,14 @@ export async function GET(
     })
 
     if (!client) {
-      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 })
+      return NextResponse.json({ success: false, error: "Cliente no encontrado" }, { status: 404 })
     }
 
-    return NextResponse.json(client)
+    return NextResponse.json({ success: true, data: client })
   } catch (error) {
     console.error("Error fetching client:", error)
     return NextResponse.json(
-      { error: "Error al obtener el cliente" },
+      { success: false, error: "Error al obtener el cliente" },
       { status: 500 }
     )
   }
@@ -52,25 +52,26 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
     }
 
     const role = (session.user as any).role as any
     if (!hasPermission(role, "clients", "update")) {
       return NextResponse.json(
-        { error: "No tienes permiso para actualizar clientes" },
+        { success: false, error: "No tienes permiso para actualizar clientes" },
         { status: 403 }
       )
     }
 
     const body = await request.json()
-    const { name, clientType, phone, email, address, rfc, observations } = body
+    const { name, clientType, category, phone, email, address, rfc, observations } = body
 
     const client = await prisma.client.update({
       where: { id: params.id },
       data: {
         name,
         clientType,
+        category,
         phone,
         email,
         address,
@@ -79,11 +80,11 @@ export async function PUT(
       },
     })
 
-    return NextResponse.json(client)
+    return NextResponse.json({ success: true, data: client })
   } catch (error) {
     console.error("Error updating client:", error)
     return NextResponse.json(
-      { error: "Error al actualizar el cliente" },
+      { success: false, error: "Error al actualizar el cliente" },
       { status: 500 }
     )
   }
@@ -96,13 +97,13 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
     }
 
     const role = (session.user as any).role as any
     if (!hasPermission(role, "clients", "delete")) {
       return NextResponse.json(
-        { error: "No tienes permiso para eliminar clientes" },
+        { success: false, error: "No tienes permiso para eliminar clientes" },
         { status: 403 }
       )
     }
@@ -117,7 +118,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting client:", error)
     return NextResponse.json(
-      { error: "Error al eliminar el cliente" },
+      { success: false, error: "Error al eliminar el cliente" },
       { status: 500 }
     )
   }

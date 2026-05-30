@@ -1,22 +1,40 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatCurrencyByCode } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { statusLabels, returnStatusLabels, itemReturnStatusLabels } from "@/types"
-import { Archive, Loader2, Check, AlertTriangle, XCircle } from "lucide-react"
+import { quoteStatusLabels, quoteStatusColors, returnStatusLabels } from "@/types"
+import { Archive, Loader2, Check, AlertTriangle, XCircle, DollarSign } from "lucide-react"
 
-interface Reservation {
+interface Quote {
   id: string
   client: { name: string }
-  locationName: string
-  startDate: string
-  endDate: string
+  eventDate: string
+  endDate: string | null
   status: string
+  totalAmount: number
+  currency: string
+  spaces: { locationName: string; startTime: string; endTime: string }[]
+  items: { 
+    id: string;
+    name: string; 
+    totalPrice: number; 
+    quantity: number;
+    productId?: string;
+    furnitureId?: string; 
+    furniture?: { id: string; name: string } 
+  }[]
+  reservation?: {
+    id: string
+    paidAmount: number
+    pendingAmount: number
+    payments: { amount: number; currency: string; createdAt: string }[]
+  }
 }
 
 interface EventClosing {
@@ -32,24 +50,26 @@ interface EventClosing {
 
 interface EventClosingItem {
   id: string
-  furnitureId: string
-  furniture: { name: string; inventoryNumber: string }
+  furnitureId?: string
+  furniture?: { name: string; inventoryNumber: string }
+  itemName?: string
+  quantity: number
   returnStatus: string
   damageDescription?: string
   repairCost: number
 }
 
 export default function EventsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [quotes, setQuotes] = useState<Quote[]>([])
   const [closings, setClosings] = useState<EventClosing[]>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
   const [furnitureItems, setFurnitureItems] = useState<any[]>([])
   const [formData, setFormData] = useState({
     returnStatus: "COMPLETO",
     observations: "",
-    items: [] as { furnitureId: string; returnStatus: string; damageDescription: string; repairCost: number }[],
+    items: [] as { itemId: string; name: string; quantity: number; returnStatus: string; damageDescription: string; repairCost: number }[],
   })
 
   useEffect(() => {
@@ -58,19 +78,19 @@ export default function EventsPage() {
 
   async function fetchData() {
     try {
-      const [reservationsRes, closingsRes, furnitureRes] = await Promise.all([
-        fetch("/api/reservations?status=EN_EJECUCION"),
-        fetch("/api/events/closing"),
+      const [quotesRes, closingsRes, furnitureRes] = await Promise.all([
+        fetch("/api/quotes?status=EN_EJECUCION"),
+        fetch("/api/event-closings"),
         fetch("/api/furniture"),
       ])
       
-      const reservationsData = await reservationsRes.json()
+      const quotesData = await quotesRes.json()
       const closingsData = await closingsRes.json()
       const furnitureData = await furnitureRes.json()
       
-      setReservations(reservationsData)
-      setClosings(closingsData)
-      setFurnitureItems(furnitureData)
+      setQuotes(quotesData.data || [])
+      setClosings(closingsData.data || [])
+      setFurnitureItems(furnitureData.data || [])
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -78,10 +98,15 @@ export default function EventsPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLiquidate = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!selectedReservation) return
+    if (!selectedQuote) return
+
+    // Validate that quote has a linked reservation
+    if (!selectedQuote.reservation?.id) {
+      alert("Esta cotización no tiene una reservación vinculada. Debe confirmarse primero.")
+      return
+    }
 
     const damageCost = formData.items
       .filter(i => i.returnStatus === "RETORNADO_DANADO")
@@ -89,18 +114,15 @@ export default function EventsPage() {
     
     const lossCost = formData.items
       .filter(i => i.returnStatus === "NO_RETORNADO")
-      .reduce((sum, i) => {
-        const furniture = furnitureItems.find(f => f.id === i.furnitureId)
-        return sum + (furniture?.currentValue || 0)
-      }, 0)
+      .reduce((sum, i) => sum + (i.repairCost || 0), 0)
 
     try {
-      const response = await fetch("/api/events/closing", {
+      // 1. Create event closing
+      const closingRes = await fetch("/api/event-closings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          reservationId: selectedReservation.id,
-          closingDate: new Date().toISOString(),
+          reservationId: selectedQuote.reservation.id,
           returnStatus: formData.returnStatus,
           observations: formData.observations,
           damageCost,
@@ -109,21 +131,30 @@ export default function EventsPage() {
         }),
       })
       
-      if (response.ok) {
-        setIsDialogOpen(false)
-        fetchData()
-        resetForm()
-      } else {
-        const error = await response.json()
-        alert(error.error || "Error al cerrar evento")
+      if (!closingRes.ok) {
+        const err = await closingRes.json()
+        alert(err.error || "Error al cerrar evento")
+        return
       }
+
+      // 2. Update quote status to FINALIZADA
+      await fetch(`/api/quotes/${selectedQuote.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "FINALIZADA" }),
+      })
+
+      setIsDialogOpen(false)
+      fetchData()
+      resetForm()
     } catch (error) {
-      console.error("Error closing event:", error)
+      console.error("Error liquidating event:", error)
+      alert("Error al liquidar evento")
     }
   }
 
   const resetForm = () => {
-    setSelectedReservation(null)
+    setSelectedQuote(null)
     setFormData({
       returnStatus: "COMPLETO",
       observations: "",
@@ -131,18 +162,24 @@ export default function EventsPage() {
     })
   }
 
-  const openClosingDialog = (reservation: Reservation) => {
-    setSelectedReservation(reservation)
-    // Create initial items for each furniture piece
+  const openLiquidationDialog = (quote: Quote) => {
+    setSelectedQuote(quote)
+    
+    // Use ALL items from the quote (products + furniture)
+    const itemsFromQuote = quote.items
+      ?.map(item => ({
+        itemId: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        returnStatus: "RETORNADO_OK" as string,
+        damageDescription: "",
+        repairCost: 0,
+      })) || []
+    
     setFormData({
       returnStatus: "COMPLETO",
       observations: "",
-      items: furnitureItems.slice(0, 5).map(f => ({
-        furnitureId: f.id,
-        returnStatus: "RETORNADO_OK",
-        damageDescription: "",
-        repairCost: 0,
-      })),
+      items: itemsFromQuote,
     })
     setIsDialogOpen(true)
   }
@@ -156,22 +193,16 @@ export default function EventsPage() {
     }))
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "COMPLETO":
-        return <Check className="w-4 h-4 text-green-600" />
-      case "CON_DANOS":
-        return <AlertTriangle className="w-4 h-4 text-orange-600" />
-      case "CON_PERDIDAS":
-        return <XCircle className="w-4 h-4 text-red-600" />
-      default:
-        return null
-    }
+  const updateItemRepairCost = (index: number, cost: number) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) => 
+        i === index ? { ...item, repairCost: cost } : item
+      )
+    }))
   }
 
-  const completedReservations = reservations.filter(r => 
-    r.status === "EN_EJECUCION" || r.status === "TOTAL_CANCELADO"
-  )
+  const activeQuotes = quotes.filter(q => q.status === "EN_EJECUCION")
 
   return (
     <div className="space-y-6">
@@ -179,7 +210,7 @@ export default function EventsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Eventos</h1>
-          <p className="text-gray-500">Cierre de eventos y control de mobiliario</p>
+          <p className="text-gray-500">Liquidación de eventos y control de mobiliario</p>
         </div>
       </div>
 
@@ -187,11 +218,11 @@ export default function EventsPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 rounded-full">
-              <Archive className="w-6 h-6 text-blue-600" />
+            <div className="p-3 bg-purple-50 rounded-full">
+              <Archive className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{reservations.length}</p>
+              <p className="text-2xl font-bold">{activeQuotes.length}</p>
               <p className="text-sm text-gray-500">En Ejecución</p>
             </div>
           </CardContent>
@@ -240,34 +271,52 @@ export default function EventsPage() {
       {/* Active Events */}
       <Card>
         <CardHeader>
-          <CardTitle>Eventos Activos - Pendientes de Cierre</CardTitle>
+          <CardTitle>Eventos Activos - Pendientes de Liquidación</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin" />
             </div>
-          ) : completedReservations.length === 0 ? (
+          ) : activeQuotes.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No hay eventos activos para cerrar
+              No hay eventos activos para liquidar
             </div>
           ) : (
             <div className="space-y-4">
-              {completedReservations.map(reservation => (
+              {activeQuotes.map(quote => (
                 <div
-                  key={reservation.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  key={quote.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                 >
-                  <div>
-                    <p className="font-medium">{reservation.client.name}</p>
-                    <p className="text-sm text-gray-500">{reservation.locationName}</p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(reservation.startDate).toLocaleDateString("es-GT")} -{" "}
-                      {new Date(reservation.endDate).toLocaleDateString("es-GT")}
+                  <div className="space-y-1">
+                    <p className="font-medium">{quote.client.name}</p>
+                    <p className="text-sm text-gray-500">
+                      {quote.spaces.map(s => s.locationName).join(", ")}
                     </p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(quote.eventDate).toLocaleDateString("es-GT")}
+                      {quote.endDate && quote.endDate !== quote.eventDate && 
+                        ` - ${new Date(quote.endDate).toLocaleDateString("es-GT")}`}
+                    </p>
+                    <div className="flex items-center gap-2 text-sm">
+                      <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="font-mono font-medium">
+                        {formatCurrencyByCode(quote.totalAmount, quote.currency)}
+                      </span>
+                      {quote.reservation && (
+                        <span className="text-xs text-muted-foreground">
+                          (Pagado: {formatCurrencyByCode(quote.reservation.paidAmount, quote.currency)})
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <Button onClick={() => openClosingDialog(reservation)}>
-                    Cerrar Evento
+                  <Button 
+                    onClick={() => openLiquidationDialog(quote)}
+                    disabled={!quote.reservation}
+                    title={!quote.reservation ? "La cotización debe estar confirmada para liquidar" : ""}
+                  >
+                    Liquidar
                   </Button>
                 </div>
               ))}
@@ -326,21 +375,61 @@ export default function EventsPage() {
         </CardContent>
       </Card>
 
-      {/* Closing Dialog */}
+      {/* Liquidation Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Cierre de Evento</DialogTitle>
+            <DialogTitle>Liquidación de Evento</DialogTitle>
           </DialogHeader>
-          {selectedReservation && (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="font-medium">{selectedReservation.client.name}</p>
-                <p className="text-sm text-gray-500">{selectedReservation.locationName}</p>
+          {selectedQuote && (
+            <form onSubmit={handleLiquidate} className="space-y-6">
+              {/* Quote Summary */}
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-lg">{selectedQuote.client.name}</p>
+                  <Badge style={{ backgroundColor: quoteStatusColors["EN_EJECUCION"], color: "#fff" }}>
+                    {quoteStatusLabels["EN_EJECUCION"]}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {selectedQuote.spaces.map(s => `${s.locationName} (${s.startTime}-${s.endTime})`).join(" | ")}
+                </p>
+                <div className="grid grid-cols-3 gap-4 pt-2 border-t border-border mt-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Cotización</p>
+                    <p className="font-mono font-semibold">{formatCurrencyByCode(selectedQuote.totalAmount, selectedQuote.currency)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Pagado</p>
+                    <p className="font-mono font-semibold text-green-600">
+                      {formatCurrencyByCode(selectedQuote.reservation?.paidAmount || 0, selectedQuote.currency)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Pendiente</p>
+                    <p className="font-mono font-semibold text-orange-600">
+                      {formatCurrencyByCode(selectedQuote.reservation?.pendingAmount || selectedQuote.totalAmount, selectedQuote.currency)}
+                    </p>
+                  </div>
+                </div>
+                {selectedQuote.reservation && selectedQuote.reservation.payments.length > 0 && (
+                  <div className="pt-2 border-t border-border mt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Pagos registrados:</p>
+                    <div className="space-y-1">
+                      {selectedQuote.reservation.payments.map((p, i) => (
+                        <div key={i} className="flex justify-between text-xs">
+                          <span>{new Date(p.createdAt).toLocaleDateString("es-GT")}</span>
+                          <span className="font-mono">{formatCurrencyByCode(p.amount, p.currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {/* Return Status */}
               <div className="space-y-2">
-                <label className="font-medium">Estado de Retorno</label>
+                <label className="font-medium">Estado de Retorno del Mobiliario</label>
                 <Select
                   value={formData.returnStatus}
                   onValueChange={(value) => setFormData({ ...formData, returnStatus: value })}
@@ -349,7 +438,7 @@ export default function EventsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="COMPLETO">Completo - Todo归还</SelectItem>
+                    <SelectItem value="COMPLETO">Completo - Todo retornado</SelectItem>
                     <SelectItem value="CON_DANOS">Con Daños</SelectItem>
                     <SelectItem value="CON_PERDIDAS">Con Pérdidas</SelectItem>
                   </SelectContent>
@@ -359,46 +448,67 @@ export default function EventsPage() {
               {/* Furniture Items */}
               <div className="space-y-2">
                 <label className="font-medium">Control de Mobiliario</label>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {formData.items.map((item, index) => {
-                    const furniture = furnitureItems.find(f => f.id === item.furnitureId)
-                    return (
-                      <div key={index} className="flex items-center gap-4 p-2 border rounded">
-                        <span className="flex-1 text-sm">{furniture?.name || item.furnitureId}</span>
-                        <Select
-                          value={item.returnStatus}
-                          onValueChange={(value) => updateItemStatus(index, value)}
-                        >
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="RETORNADO_OK">Retornado OK</SelectItem>
-                            <SelectItem value="RETORNADO_DANADO">Dañado</SelectItem>
-                            <SelectItem value="NO_RETORNADO">No Retornado</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )
-                  })}
+                {formData.items.length === 0 ? (
+                  <div className="p-4 border rounded-lg bg-muted/30 text-center text-sm text-muted-foreground">
+                    Esta cotización no tiene items asignados.
+                  </div>
+                ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-2">
+                  {formData.items.map((item, index) => (
+                    <div key={index} className="flex items-center gap-3 p-2 border rounded bg-background">
+                      <span className="flex-1 text-sm font-medium">
+                        {item.name} {item.quantity > 1 && `(x${item.quantity})`}
+                      </span>
+                      <Select
+                        value={item.returnStatus}
+                        onValueChange={(value) => updateItemStatus(index, value)}
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="RETORNADO_OK">OK</SelectItem>
+                          <SelectItem value="RETORNADO_DANADO">Dañado</SelectItem>
+                          <SelectItem value="NO_RETORNADO">Perdido</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {item.returnStatus === "RETORNADO_DANADO" && (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Costo reparación"
+                          value={item.repairCost || ""}
+                          onChange={(e) => updateItemRepairCost(index, parseFloat(e.target.value) || 0)}
+                          className="w-28"
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
+                )}
               </div>
 
+              {/* Observations */}
               <div className="space-y-2">
-                <label className="font-medium">Observaciones</label>
+                <label className="font-medium">Observaciones / Incidencias</label>
                 <textarea
-                  className="w-full p-2 border rounded-md"
+                  className="w-full p-2 border rounded-md bg-background"
                   rows={3}
                   value={formData.observations}
                   onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+                  placeholder="Describa cualquier incidencia durante el evento..."
                 />
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit">Confirmar Cierre</Button>
+                <Button type="submit">
+                  <Check className="w-4 h-4 mr-2" />
+                  Liquidar Evento
+                </Button>
               </DialogFooter>
             </form>
           )}

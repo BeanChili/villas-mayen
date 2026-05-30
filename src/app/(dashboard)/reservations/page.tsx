@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { statusLabels } from "@/types"
-import { formatCurrency, getStatusColor, getStatusLabel } from "@/lib/utils"
+import { statusLabels, quoteStatusLabels, quoteStatusColors } from "@/types"
+import { formatCurrency, getStatusColor, getStatusLabel, getScheduleFromTime } from "@/lib/utils"
 import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, Check, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -47,6 +47,12 @@ interface Reservation {
   pendingAmount?: number
   observations?: string
   payments: Payment[]
+  spaces?: any[]
+  reservationId?: string // ID de la reservación real (si existe)
+  isQuote?: boolean // true si es una quote mostrada como reservation
+
+  // Computed on fetch
+  _total?: number
 }
 
 interface Location {
@@ -166,7 +172,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
     setPaymentError("")
     setSavingPayment(true)
     try {
-      const res = await fetch(`/api/reservations/${reservation.id}/payments`, {
+      const res = await fetch(`/api/reservations/${reservation.reservationId}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount, notes: paymentNotes || undefined }),
@@ -422,31 +428,40 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         {/* Register payment form */}
         {!isCancelled && pending > 0 && (
           <div className="flex flex-col gap-2 pt-4 border-t border-border">
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder="Monto"
-                value={paymentAmount}
-                onChange={e => { setPaymentAmount(e.target.value); setPaymentError("") }}
-                className="flex-1 font-mono"
-                min={0}
-                max={pending}
-              />
-              <Button
-                onClick={registerPayment}
-                disabled={savingPayment || !paymentAmount}
-                size="sm"
-                className="px-5"
-              >
-                {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : "Registrar"}
-              </Button>
-            </div>
-            <Input
-              placeholder="Notas (opcional)"
-              value={paymentNotes}
-              onChange={e => setPaymentNotes(e.target.value)}
-              className="text-sm"
-            />
+            {!reservation.reservationId ? (
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
+                <p className="font-medium">Cotización sin reservación</p>
+                <p className="text-xs mt-1">Esta cotización está en estado <strong>{getStatusLabel(reservation.status)}</strong>. Debe confirmarse primero para crear la reservación y poder registrar pagos.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Monto"
+                    value={paymentAmount}
+                    onChange={e => { setPaymentAmount(e.target.value); setPaymentError("") }}
+                    className="flex-1 font-mono"
+                    min={0}
+                    max={pending}
+                  />
+                  <Button
+                    onClick={registerPayment}
+                    disabled={savingPayment || !paymentAmount}
+                    size="sm"
+                    className="px-5"
+                  >
+                    {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : "Registrar"}
+                  </Button>
+                </div>
+                <Input
+                  placeholder="Notas (opcional)"
+                  value={paymentNotes}
+                  onChange={e => setPaymentNotes(e.target.value)}
+                  className="text-sm"
+                />
+              </>
+            )}
             {paymentError && (
               <div className="flex items-center gap-1.5 text-destructive text-xs">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -479,7 +494,7 @@ export default function ReservationsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [displayMode, setDisplayMode] = useState<"list" | "calendar">("calendar")
-  const [granularity, setGranularity] = useState<"month" | "week">("month")
+  const [granularity, setGranularity] = useState<"month" | "week" | "day">("month")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [formError, setFormError] = useState("")
@@ -513,38 +528,49 @@ export default function ReservationsPage() {
       setIsRefreshing(true)
     }
     try {
-      const months: Array<{ month: number; year: number }> = []
-      const m1 = { month: currentDate.getMonth() + 1, year: currentDate.getFullYear() }
-      months.push(m1)
+      // Fetch quotes (primary data source for calendar — F6)
+      const quotesRes = await fetch("/api/quotes")
+      const quotesData = await quotesRes.json()
+      const quotes = Array.isArray(quotesData) ? quotesData : (quotesData.data || [])
 
-      if (granularity === "week") {
-        const weekDays = getWeekDays(currentDate)
-        const lastDay  = weekDays[6]
-        const m2 = { month: lastDay.getMonth() + 1, year: lastDay.getFullYear() }
-        if (m2.month !== m1.month || m2.year !== m1.year) months.push(m2)
-      }
+      // Map quotes to calendar-compatible format
+      const mappedQuotes = quotes.map((q: any) => {
+        const spaces = q.spaces || []
+        const firstSpace = spaces[0]
+        const lastSpace = spaces[spaces.length - 1]
+        const startSchedule = firstSpace ? (getScheduleFromTime(firstSpace.startTime) || "MANANA") : "MANANA"
+        const endSchedule = lastSpace ? (getScheduleFromTime(lastSpace.endTime) || "NOCHE") : "NOCHE"
+        const locationName = spaces.map((s: any) => s.locationName).filter(Boolean).join(", ") || "—"
 
-      const resResults = await Promise.all(
-        months.map(({ month, year }) =>
-          fetch(`/api/reservations?month=${month}&year=${year}`).then(r => r.json())
-        )
-      )
+          return {
+          id: q.id,
+          clientId: q.clientId,
+          client: q.client || { name: "—" },
+          locationType: firstSpace?.locationType || "HALL",
+          locationName,
+          startDate: q.eventDate,
+          endDate: q.endDate || q.eventDate,
+          startSchedule,
+          endSchedule,
+          schedules: JSON.stringify([startSchedule]),
+          status: q.status, // quote status (BORRADOR, ENVIADA, etc.)
+          paymentStatus: q.reservation?.paymentStatus || "SIN_PAGO",
+          totalAmount: q.totalAmount || 0,
+          paidAmount: q.reservation?.paidAmount || 0,
+          pendingAmount: (q.totalAmount || 0) - (q.reservation?.paidAmount || 0),
+          observations: q.notes || "",
+          payments: q.reservation?.payments || [],
+          spaces,
+          reservationId: q.reservationId,
+          isQuote: true,
+        } as Reservation
+      })
 
-      const merged = Object.values(
-        resResults.flat().reduce((acc: Record<string, Reservation>, r: Reservation) => {
-          acc[r.id] = r
-          return acc
-        }, {})
-      ) as Reservation[]
+      const locRes = await fetch("/api/locations")
+      const locData = await locRes.json()
+      setLocations(Array.isArray(locData) ? locData : (locData.data || []))
 
-      const [cliRes, locRes] = await Promise.all([
-        fetch("/api/clients"),
-        fetch("/api/locations"),
-      ])
-
-      setReservations(merged)
-      setClients(await cliRes.json())
-      setLocations(await locRes.json())
+      setReservations(mappedQuotes)
     } catch (err) {
       console.error("Error fetching data:", err)
     } finally {
@@ -558,9 +584,13 @@ export default function ReservationsPage() {
   const prevPeriod = () => {
     if (granularity === "month") {
       setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
-    } else {
+    } else if (granularity === "week") {
       const d = new Date(currentDate)
       d.setDate(d.getDate() - 7)
+      setCurrentDate(d)
+    } else {
+      const d = new Date(currentDate)
+      d.setDate(d.getDate() - 1)
       setCurrentDate(d)
     }
   }
@@ -568,9 +598,13 @@ export default function ReservationsPage() {
   const nextPeriod = () => {
     if (granularity === "month") {
       setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
-    } else {
+    } else if (granularity === "week") {
       const d = new Date(currentDate)
       d.setDate(d.getDate() + 7)
+      setCurrentDate(d)
+    } else {
+      const d = new Date(currentDate)
+      d.setDate(d.getDate() + 1)
       setCurrentDate(d)
     }
   }
@@ -664,7 +698,7 @@ export default function ReservationsPage() {
       return dayKey >= sk && dayKey <= ek
     })
 
-  const availableLocations = locations.filter(l => l.type === formData.locationType)
+  const availableLocations = (locations || []).filter(l => l.type === formData.locationType)
 
   const today = getDateKey(new Date())
 
@@ -685,19 +719,13 @@ export default function ReservationsPage() {
     const overflow = dayRes.length - MAX_BARS
 
     const handleCellClick = () => {
-      setFormData(prev => ({
-        ...prev,
-        startDate: dayKey,
-        endDate: dayKey,
-        startSchedule: "MANANA",
-        endSchedule: "NOCHE",
-      }))
-      setIsDialogOpen(true)
+      window.location.href = "/quotes"
     }
 
     return (
       <div
         className="vm-day-cell cursor-pointer"
+        style={{ minHeight: granularity === "week" ? 180 : 140 }}
         onClick={handleCellClick}
       >
         {/* Day number — hidden in week view (header already shows it) */}
@@ -738,14 +766,15 @@ export default function ReservationsPage() {
             return (
               <div
                 key={res.id}
-                className="relative h-[14px]"
+                className="relative"
+                style={{ height: granularity === "week" ? 22 : 18 }}
               >
                 <div
-                  className="vm-res-bar flex items-center overflow-hidden"
+                  className="vm-res-bar flex items-center overflow-hidden rounded-sm"
                   style={{
                     left,
                     right,
-                    backgroundColor: getStatusColor(res.status),
+                    backgroundColor: quoteStatusColors[res.status] || getStatusColor(res.status),
                   }}
                   onClick={(e) => { e.stopPropagation(); setSelectedReservation(res) }}
                   title={`${res.locationName} — ${res.client.name}`}
@@ -754,12 +783,12 @@ export default function ReservationsPage() {
                     <span
                       className="truncate leading-none pointer-events-none select-none"
                       style={{
-                        fontSize: "8px",
+                        fontSize: granularity === "week" ? "11px" : "9px",
                         fontWeight: 600,
-                        color: "rgba(255,255,255,0.92)",
-                        paddingLeft: "4px",
-                        paddingRight: "4px",
-                        letterSpacing: "0.02em",
+                        color: "rgba(255,255,255,0.95)",
+                        paddingLeft: "6px",
+                        paddingRight: "6px",
+                        letterSpacing: "0.01em",
                       }}
                     >
                       {res.client.name}
@@ -859,12 +888,317 @@ export default function ReservationsPage() {
     )
   }
 
+  // ── vista por día (pantalla grande / TV) ───────────────────────────────────
+
+  /* ── helpers para vista de día tipo Google Calendar ── */
+
+  function parseTimeToDecimal(timeStr: string): number {
+    const [h, m] = timeStr.split(":").map(Number)
+    return h + (m || 0) / 60
+  }
+
+  function getEventTimeRange(res: Reservation): { start: number; end: number } {
+    // Si hay espacios con horarios exactos, usarlos
+    if (res.spaces && res.spaces.length > 0) {
+      const times = res.spaces.flatMap((sp: any) => {
+        const s = sp.startTime ? parseTimeToDecimal(sp.startTime) : null
+        const e = sp.endTime ? parseTimeToDecimal(sp.endTime) : null
+        return s !== null && e !== null ? [{ start: s, end: e }] : []
+      })
+      if (times.length > 0) {
+        return {
+          start: Math.min(...times.map((t: any) => t.start)),
+          end: Math.max(...times.map((t: any) => t.end)),
+        }
+      }
+    }
+    // Fallback a bloques de horario
+    const scheduleStart: Record<string, number> = { MANANA: 7, TARDE: 14, NOCHE: 20 }
+    const scheduleEnd: Record<string, number> = { MANANA: 13, TARDE: 19, NOCHE: 25 }
+    return {
+      start: scheduleStart[res.startSchedule] ?? 7,
+      end: scheduleEnd[res.endSchedule] ?? 13,
+    }
+  }
+
+  function computeOverlapGroups(events: { id: string; start: number; end: number }[]) {
+    // Algoritmo greedy para asignar columnas a eventos solapados
+    // Similar a Google Calendar: eventos concurrentes se distribuyen en columnas
+    const sorted = [...events].sort((a, b) => a.start - b.start || a.end - b.end)
+    const result = new Map<string, { col: number; totalCols: number }>()
+
+    if (sorted.length === 0) return result
+
+    // Para cada evento, encontrar todos los eventos que se solapan (directa o indirectamente)
+    // y asignar columnas dentro de ese grupo
+    const processed = new Set<string>()
+
+    for (const ev of sorted) {
+      if (processed.has(ev.id)) continue
+
+      // Encontrar grupo de solapamiento: todos los eventos que se solapan con este
+      // o con eventos que se solapan con este (transitivamente)
+      const group: typeof sorted = []
+      const toProcess = [ev]
+      const groupIds = new Set<string>([ev.id])
+
+      while (toProcess.length > 0) {
+        const current = toProcess.pop()!
+        group.push(current)
+        processed.add(current.id)
+
+        // Encontrar eventos que se solapan con current
+        for (const other of sorted) {
+          if (groupIds.has(other.id)) continue
+          // Se solapan si: other.start < current.end && other.end > current.start
+          if (other.start < current.end && other.end > current.start) {
+            groupIds.add(other.id)
+            toProcess.push(other)
+          }
+        }
+      }
+
+      // Asignar columnas greedy dentro del grupo
+      group.sort((a, b) => a.start - b.start || a.end - b.end)
+      const columns: { end: number; events: string[] }[] = []
+
+      for (const gEv of group) {
+        let assigned = false
+        for (let i = 0; i < columns.length; i++) {
+          // Si la última columna termina antes de que empiece este evento, reutilizar
+          const lastEnd = Math.max(...columns[i].events.map((eId) => {
+            const e = group.find((x) => x.id === eId)
+            return e?.end ?? 0
+          }))
+          if (lastEnd <= gEv.start) {
+            columns[i].events.push(gEv.id)
+            assigned = true
+            break
+          }
+        }
+        if (!assigned) {
+          columns.push({ end: gEv.end, events: [gEv.id] })
+        }
+      }
+
+      const totalCols = Math.max(columns.length, 1)
+      for (let i = 0; i < columns.length; i++) {
+        for (const eId of columns[i].events) {
+          result.set(eId, { col: i, totalCols })
+        }
+      }
+    }
+
+    return result
+  }
+
+  const renderDayView = () => {
+    const dayKey = getDateKey(currentDate)
+    const dayRes = getResForDay(dayKey)
+
+    // Rango de horas: 7:00 a 25:00 (1:00 AM) = 18 horas
+    const DAY_START = 7
+    const DAY_END = 25
+    const HOUR_HEIGHT = 64 // px por hora
+    const TOTAL_HOURS = DAY_END - DAY_START
+    const TIMELINE_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT
+
+    // Preparar eventos con tiempos
+    const events = dayRes.map((res) => {
+      const range = getEventTimeRange(res)
+      return {
+        id: res.id,
+        res,
+        start: Math.max(range.start, DAY_START),
+        end: Math.min(range.end, DAY_END),
+      }
+    })
+
+    // Calcular columnas para solapamientos
+    const overlapGroups = computeOverlapGroups(events)
+
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">
+            {currentDate.toLocaleDateString("es-GT", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </h2>
+          <span className="text-sm text-muted-foreground">
+            {events.length} evento{events.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <CalendarDays className="w-12 h-12 mb-3 opacity-30" />
+            <p className="text-lg">Sin eventos para este día</p>
+            <Button
+              variant="outline"
+              className="mt-4 gap-2"
+              onClick={() => (window.location.href = `/quotes`)}
+            >
+              <Plus className="w-4 h-4" /> Cotizar
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-1 overflow-auto">
+            {/* Columna de horas */}
+            <div
+              className="flex-shrink-0 border-r border-border bg-muted/30"
+              style={{ width: 64, height: TIMELINE_HEIGHT + 24 }}
+            >
+              {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => {
+                const hour = DAY_START + i
+                const displayHour = hour >= 24 ? hour - 24 : hour
+                const ampm = hour < 12 || hour >= 24 ? "a.m." : "p.m."
+                return (
+                  <div
+                    key={hour}
+                    className="text-[11px] text-muted-foreground text-right pr-2 relative"
+                    style={{
+                      height: HOUR_HEIGHT,
+                      lineHeight: "14px",
+                      marginTop: i === 0 ? 24 : 0,
+                    }}
+                  >
+                    <span className="absolute right-2 -top-2">
+                      {displayHour === 0 ? 12 : displayHour > 12 ? displayHour - 12 : displayHour}{" "}
+                      {ampm}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Área de eventos */}
+            <div className="flex-1 relative" style={{ height: TIMELINE_HEIGHT + 24, minWidth: 300 }}>
+              {/* Líneas de hora */}
+              {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                <div
+                  key={i}
+                  className="absolute left-0 right-0 border-t border-border/60"
+                  style={{ top: i * HOUR_HEIGHT + 24 }}
+                />
+              ))}
+
+              {/* Línea de hora actual */}
+              {(() => {
+                const now = new Date()
+                const currentHour = now.getHours() + now.getMinutes() / 60
+                if (currentHour >= DAY_START && currentHour <= DAY_END) {
+                  const currentTop = (currentHour - DAY_START) * HOUR_HEIGHT + 24
+                  return (
+                    <div
+                      className="absolute left-0 right-0 z-10 pointer-events-none"
+                      style={{ top: currentTop }}
+                    >
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                        <div className="flex-1 border-t border-red-500 border-dashed" />
+                      </div>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+
+              {/* Eventos */}
+              {events.map((ev) => {
+                const top = (ev.start - DAY_START) * HOUR_HEIGHT + 24
+                const height = Math.max((ev.end - ev.start) * HOUR_HEIGHT - 2, 28)
+                const overlap = overlapGroups.get(ev.id) ?? { col: 0, totalCols: 1 }
+                const widthPct = 100 / overlap.totalCols
+                const leftPct = overlap.col * widthPct
+
+                const statusColor = quoteStatusColors[ev.res.status] || "#9ca3af"
+                const statusLabel = quoteStatusLabels[ev.res.status] || ev.res.status
+                const clientName = ev.res.client.name
+                const shortName =
+                  clientName.length > 20 ? clientName.slice(0, 18) + "…" : clientName
+
+                return (
+                  <div
+                    key={ev.id}
+                    className="absolute cursor-pointer transition-all duration-200 rounded-lg overflow-hidden border-l-[4px] hover:shadow-md hover:scale-[1.02]"
+                    style={{
+                      top,
+                      height,
+                      left: `calc(${leftPct}% + 2px)`,
+                      width: `calc(${widthPct}% - 4px)`,
+                      backgroundColor: `${statusColor}18`,
+                      borderLeftColor: statusColor,
+                      boxShadow: `0 1px 3px ${statusColor}30`,
+                    }}
+                    onClick={() => setSelectedReservation(ev.res)}
+                    title={`${clientName} — ${statusLabel}\n${ev.res.locationName}\n${formatCurrency(
+                      ev.res.totalAmount
+                    )}`}
+                  >
+                    <div className="px-2 py-1 h-full flex flex-col">
+                      {/* Título: nombre del cliente */}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-2 ring-white"
+                          style={{ backgroundColor: statusColor }}
+                        />
+                        <span className="text-[11px] font-bold text-foreground truncate leading-tight">
+                          {shortName}
+                        </span>
+                      </div>
+
+                      {/* Info secundaria: horario + ubicación */}
+                      {height > 36 && (
+                        <div className="mt-1 space-y-0.5">
+                          <div className="flex items-center gap-1 text-[9px] text-muted-foreground truncate">
+                            <Clock className="w-2.5 h-2.5 flex-shrink-0" />
+                            <span className="truncate">
+                              {SCHEDULE_LABELS[ev.res.startSchedule as Schedule]} —{" "}
+                              {SCHEDULE_LABELS[ev.res.endSchedule as Schedule]}
+                            </span>
+                          </div>
+                          {height > 52 && (
+                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground truncate">
+                              <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+                              <span className="truncate">{ev.res.locationName}</span>
+                            </div>
+                          )}
+                          {height > 72 && (
+                            <div className="text-[9px] font-mono font-semibold text-foreground/90 truncate">
+                              {formatCurrency(ev.res.totalAmount)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // ── vista de lista ────────────────────────────────────────────────────────
 
   const renderListView = () => {
     // Filter reservations to the current period
     let filtered: Reservation[]
-    if (granularity === "week") {
+    if (granularity === "day") {
+      const dayKey = getDateKey(currentDate)
+      filtered = reservations.filter(r => {
+        const s = getDateKey(parseDate(r.startDate))
+        const e = getDateKey(parseDate(r.endDate))
+        return s <= dayKey && e >= dayKey
+      })
+    } else if (granularity === "week") {
       const weekDays = getWeekDays(currentDate)
       const weekStart = getDateKey(weekDays[0])
       const weekEnd   = getDateKey(weekDays[6])
@@ -930,7 +1264,7 @@ export default function ReservationsPage() {
                     <td className="p-3">
                       <span
                         className="vm-status-badge"
-                        style={{ backgroundColor: getStatusColor(res.status), color: "#fff" }}
+                        style={{ backgroundColor: quoteStatusColors[res.status] || getStatusColor(res.status), color: "#fff" }}
                       >
                         {getStatusLabel(res.status)}
                       </span>
@@ -953,6 +1287,9 @@ export default function ReservationsPage() {
   const getPeriodTitle = () => {
     if (granularity === "month") {
       return `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+    }
+    if (granularity === "day") {
+      return currentDate.toLocaleDateString("es-GT", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     }
     const week = getWeekDays(currentDate)
     const first = week[0]
@@ -985,11 +1322,13 @@ export default function ReservationsPage() {
               <span className="hidden sm:inline">Ver Menú</span>
             </Button>
           </a>
-          <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Nueva Reservación</span>
-            <span className="sm:hidden">Nueva</span>
-          </Button>
+          <a href="/quotes">
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Cotizar</span>
+              <span className="sm:hidden">Cotizar</span>
+            </Button>
+          </a>
         </div>
       </div>
 
@@ -1027,9 +1366,9 @@ export default function ReservationsPage() {
                 </button>
               ))}
             </div>
-            {/* Mes / Semana — siempre visible */}
+            {/* Mes / Semana / Día */}
             <div className="flex rounded-lg overflow-hidden border border-border">
-              {(["month", "week"] as const).map(g => (
+              {(["month", "week", "day"] as const).map(g => (
                 <button
                   key={g}
                   className={cn(
@@ -1038,7 +1377,7 @@ export default function ReservationsPage() {
                   )}
                   onClick={() => setGranularity(g)}
                 >
-                  {g === "month" ? "Mes" : "Semana"}
+                  {g === "month" ? "Mes" : g === "week" ? "Semana" : "Día"}
                 </button>
               ))}
             </div>
@@ -1067,34 +1406,23 @@ export default function ReservationsPage() {
               <div className={cn("w-full p-4", !(displayMode === "calendar" && granularity === "week") && "hidden")} style={{ minHeight: 520 }}>
                 {renderWeekView()}
               </div>
+              <div className={cn("w-full", !(displayMode === "calendar" && granularity === "day") && "hidden")}>
+                {renderDayView()}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Status legend */}
+      {/* Status legend — Quote statuses (F6) */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-1">
-        {/* Reservation statuses */}
+        {/* Quote statuses */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Reservación</span>
-          {(["COTIZADO","CONFIRMADO","EN_EJECUCION","FINALIZADO","CANCELADO"] as const).map(key => (
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cotización</span>
+          {(["BORRADOR","ENVIADA","NO_CONFIRMADA","CONFIRMADA","EN_EJECUCION","CANCELADO","FINALIZADA"] as const).map(key => (
             <div key={key} className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getStatusColor(key) }} />
-              <span className="text-xs text-muted-foreground">{statusLabels[key]}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Divider */}
-        <div className="hidden sm:block w-px h-4 bg-border" />
-
-        {/* Payment statuses */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Pago</span>
-          {(["SIN_PAGO","PARCIAL","PAGADO"] as const).map(key => (
-            <div key={key} className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getStatusColor(key) }} />
-              <span className="text-xs text-muted-foreground">{statusLabels[key]}</span>
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: quoteStatusColors[key] || "#9ca3af" }} />
+              <span className="text-xs text-muted-foreground">{quoteStatusLabels[key] || key}</span>
             </div>
           ))}
         </div>

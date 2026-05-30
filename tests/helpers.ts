@@ -77,6 +77,45 @@ export const waitForDialog = async (page: Page): Promise<Locator> => {
   return dialog;
 };
 
+/**
+ * Select a client from the custom dropdown in quote/client forms
+ * The dropdown has a trigger div, then opens with an input and list
+ */
+export const selectClientFromDropdown = async (page: Page, clientName: string, scope?: Locator) => {
+  const container = scope || page;
+  
+  // Find the trigger div with "Buscar cliente..." text
+  const trigger = container.locator('div').filter({ hasText: /Buscar cliente/ }).first();
+  
+  // Click on the search icon (svg/img) inside the trigger - more reliable than clicking the div
+  const icon = trigger.locator('svg, img, [class*="search"]').first();
+  try {
+    await icon.click({ timeout: 3000 });
+  } catch {
+    // Fallback: click on the div itself with force
+    await trigger.click({ force: true });
+  }
+  await page.waitForTimeout(500);
+  
+  // Wait for dropdown input to appear
+  const searchInput = page.locator('input[placeholder*="Escribir nombre"]');
+  await searchInput.waitFor({ state: 'visible', timeout: 5000 });
+  
+  // Fill the search input
+  await searchInput.fill(clientName);
+  
+  // Wait for results to filter
+  await page.waitForTimeout(500);
+  
+  // Click the matching result (look inside the dropdown list area)
+  const dropdownList = page.locator('div.max-h-48');
+  const result = dropdownList.locator('div').filter({ hasText: clientName }).first();
+  await result.click();
+  
+  // Wait for dropdown to close
+  await page.waitForTimeout(300);
+};
+
 export const clickSidebar = async (page: Page, item: string) => {
   // Dashboard page has no sidebar — navigate to an internal page first if needed
   const currentUrl = page.url();
@@ -90,7 +129,11 @@ export const clickSidebar = async (page: Page, item: string) => {
       'Inventario': '/inventory',
       'Gastos': '/expenses',
       'Eventos': '/events',
-      'Catálogos': '/catalog',
+      'Catálogo': '/catalog/locations',
+      'Ubicaciones': '/catalog/locations',
+      'Productos': '/catalog/products',
+      'Habitaciones': '/rooms',
+      'Cierres': '/reports/closings',
       'Configuración': '/settings',
     };
     const route = routes[item];
@@ -150,17 +193,44 @@ export const waitForElement = async (page: Page, selector: string, timeout = 100
 
 // UI helpers
 export const getStatusColor = (status: string): string => {
+  // Legacy reservation / payment statuses
   const colors: Record<string, string> = {
-    COTIZADO: '#9ca3af',
-    ANTICIPO: '#fbbf24',
-    DEPOSITO: '#3b82f6',
-    SALDO: '#f97316',
-    TOTAL_CANCELADO: '#22c55e',
+    COTIZADO:     '#6B7280',
+    CONFIRMADO:   '#3B82F6',
+    EN_EJECUCION: '#8B5CF6',
+    FINALIZADO:   '#10B981',
+    CANCELADO:    '#EF4444',
+    SIN_PAGO: '#6B7280',
+    PARCIAL:  '#F59E0B',
+    PAGADO:   '#10B981',
+  };
+  return colors[status] || '#6B7280';
+};
+
+export const getQuoteStatusColor = (status: string): string => {
+  const colors: Record<string, string> = {
+    BORRADOR: '#9ca3af',
+    ENVIADA: '#6b7280',
+    NO_CONFIRMADA: '#ef4444',
+    CONFIRMADA: '#22c55e',
     EN_EJECUCION: '#a855f7',
-    FINALIZADO: '#64748b',
-    FINALIZADO_COBRO: '#10b981',
+    CANCELADO: '#991b1b',
+    FINALIZADA: '#dc2626',
   };
   return colors[status] || '#9ca3af';
+};
+
+export const getQuoteStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = {
+    BORRADOR: 'Borrador',
+    ENVIADA: 'Enviada a Cliente',
+    NO_CONFIRMADA: 'No Confirmada',
+    CONFIRMADA: 'Confirmada / Pago Anticipo',
+    EN_EJECUCION: 'En Ejecución',
+    CANCELADO: 'Cancelado',
+    FINALIZADA: 'Finalizada / Liquidada',
+  };
+  return labels[status] || status;
 };
 
 export const getRoleLabel = (role: string): string => {
@@ -170,8 +240,8 @@ export const getRoleLabel = (role: string): string => {
     FINANZAS: 'Finanzas',
     ALMACEN: 'Almacén',
     ENCARGADO_EVENTO: 'Encargado de Evento',
-    USUARIO_SISTEMA: 'Usuario Sistema',
-    VISUAL: 'Visual',
+    USUARIO_SISTEMA: 'Usuario del Sistema',
+    VISUAL: 'Solo Visual',
   };
   return labels[role] || role;
 };
@@ -186,6 +256,16 @@ export const getClientTypeLabel = (type: string): string => {
   return labels[type] || type;
 };
 
+export const getClientCategoryLabel = (category: string): string => {
+  const labels: Record<string, string> = {
+    BUENO: 'Bueno',
+    REGULAR: 'Regular',
+    DELICADO: 'Delicado',
+    EN_OBSERVACION: 'En Observación',
+  };
+  return labels[category] || category;
+};
+
 export const getLocationTypeLabel = (type: string): string => {
   const labels: Record<string, string> = {
     FREE_AREA: 'Área Libre',
@@ -193,6 +273,7 @@ export const getLocationTypeLabel = (type: string): string => {
     HALL: 'Salón',
     ROOM: 'Habitación',
     GARDEN: 'Jardín',
+    TERRACE: 'Terraza',
   };
   return labels[type] || type;
 };

@@ -102,8 +102,29 @@ export function getLocationTypeLabel(type: string): string {
     HALL: 'Salón',
     ROOM: 'Habitación',
     GARDEN: 'Jardín',
+    TERRACE: 'Terraza',
   }
   return labels[type] || type
+}
+
+export function getClientCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    BUENO: 'Bueno',
+    REGULAR: 'Regular',
+    DELICADO: 'Delicado',
+    EN_OBSERVACION: 'En Observación',
+  }
+  return labels[category] || category
+}
+
+export function getClientCategoryColor(category: string): string {
+  const colors: Record<string, string> = {
+    BUENO: '#22c55e',
+    REGULAR: '#3b82f6',
+    DELICADO: '#f59e0b',
+    EN_OBSERVACION: '#ef4444',
+  }
+  return colors[category] || '#6b7280'
 }
 
 export function getClientTypeLabel(type: string): string {
@@ -155,6 +176,85 @@ export function getProductCategoryLabel(category: string): string {
     MOBILIARIO: 'Mobiliario',
     ADORNOS_DECORACION: 'Adornos y Decoración',
     SERVICIOS_ADICIONALES: 'Servicios Adicionales',
+    PLATOS: 'Platos',
+    CUBIERTOS: 'Cubiertos',
+    PICHELES: 'Picheles',
+    VASOS: 'Vasos',
+    COPAS: 'Copas',
   }
   return labels[category] || category
+}
+
+// ─── Funciones nuevas (Reunión 2) ─────────────────────────────────────────
+
+export function formatCurrencyUSD(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+}
+
+export function formatCurrencyByCode(amount: number, currency: string): string {
+  if (currency === 'USD') return formatCurrencyUSD(amount)
+  return formatCurrency(amount)
+}
+
+export function calculateExpiryDate(sentDate: Date, validityDays: number = 15): Date {
+  let daysAdded = 0
+  const result = new Date(sentDate)
+  while (daysAdded < validityDays) {
+    result.setDate(result.getDate() + 1)
+    if (result.getDay() !== 0 && result.getDay() !== 6) daysAdded++
+  }
+  return result
+}
+
+export function getScheduleFromTime(time: string): string | null {
+  const [h] = time.split(':').map(Number)
+  if (h >= 7 && h < 13) return 'MANANA'
+  if (h >= 14 && h < 19) return 'TARDE'
+  if (h >= 20 || h < 1) return 'NOCHE'
+  return null
+}
+
+// Máquina de estados — transiciones válidas
+export const VALID_QUOTE_TRANSITIONS: Record<string, string[]> = {
+  BORRADOR: ['ENVIADA'],
+  ENVIADA: ['CONFIRMADA', 'NO_CONFIRMADA'],
+  NO_CONFIRMADA: ['ENVIADA'],
+  CONFIRMADA: ['EN_EJECUCION', 'CANCELADO'],
+  EN_EJECUCION: ['FINALIZADA', 'CANCELADO'],
+  CANCELADO: [],
+  FINALIZADA: [],
+}
+
+export function isValidTransition(current: string, next: string): boolean {
+  return VALID_QUOTE_TRANSITIONS[current]?.includes(next) ?? false
+}
+
+export function getRoomStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    DISPONIBLE: 'Disponible',
+    RESERVADA: 'Reservada',
+    OCUPADA: 'Ocupada',
+    MANTENIMIENTO: 'Mantenimiento',
+  }
+  return labels[status] || status
+}
+
+export function getRoomStatusColor(status: string): string {
+  const colors: Record<string, string> = {
+    DISPONIBLE: '#22c55e',
+    RESERVADA: '#3b82f6',
+    OCUPADA: '#a855f7',
+    MANTENIMIENTO: '#f59e0b',
+  }
+  return colors[status] || '#6b7280'
+}
+
+export function getBedTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    INDIVIDUAL: 'Individual',
+    MATRIMONIAL: 'Matrimonial',
+    QUEEN: 'Queen',
+    KING: 'King',
+  }
+  return labels[type] || type
 }

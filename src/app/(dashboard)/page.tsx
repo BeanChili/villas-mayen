@@ -22,6 +22,7 @@ async function getDashboardData() {
       newClientsThisMonth,
       furnitureInUse,
       damagedFurniture,
+      executingEvents,
     ] = await Promise.all([
       prisma.reservation.count({
         where: {
@@ -66,6 +67,23 @@ async function getDashboardData() {
           status: { in: ["DAÑADO", "DADO_BAJA"] },
         },
       }),
+      // Eventos EN_EJECUCION de hoy
+      prisma.quote.findMany({
+        where: {
+          status: "EN_EJECUCION",
+          eventDate: { gte: startOfToday, lte: endOfToday },
+        },
+        include: {
+          client: true,
+          spaces: true,
+          reservation: {
+            include: {
+              payments: true,
+            },
+          },
+        },
+        orderBy: { eventDate: "asc" },
+      }),
     ])
 
     return {
@@ -76,8 +94,10 @@ async function getDashboardData() {
       newClientsThisMonth,
       furnitureInUse,
       damagedFurniture,
+      executingEvents,
     }
   } catch (error) {
+    console.error("Dashboard error:", error)
     return {
       reservationsCount: 0,
       todayEvents: 0,
@@ -86,6 +106,7 @@ async function getDashboardData() {
       newClientsThisMonth: 0,
       furnitureInUse: 0,
       damagedFurniture: 0,
+      executingEvents: [],
     }
   }
 }

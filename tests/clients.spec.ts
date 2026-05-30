@@ -15,7 +15,7 @@ test.describe('Clients', () => {
 
   test.describe('Page Load', () => {
     test('should load clients page successfully', async ({ page }) => {
-      await expect(page.locator('h1:has-text("Clientes")')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('main h1:has-text("Clientes")')).toBeVisible({ timeout: 10000 });
       await expect(page.locator('button:has-text("Nuevo Cliente")')).toBeVisible();
     });
 
@@ -90,10 +90,17 @@ test.describe('Clients', () => {
       // Fill all fields - inputs in order: name, phone, email, address, rfc, observations
       await dialog.locator('input').nth(0).fill(testName);
       
-      // Select type
-      await dialog.locator('[role="combobox"]').click();
+      // Select type (first combobox = client type, second = category)
+      await dialog.locator('[role="combobox"]').nth(0).click();
       await page.waitForTimeout(300);
       await page.locator('[role="option"]:has-text("Empresa")').click();
+      await page.waitForTimeout(300);
+      
+      // Select category
+      await dialog.locator('[role="combobox"]').nth(1).click();
+      await page.waitForTimeout(300);
+      await page.locator('[role="option"]:has-text("Bueno")').click();
+      await page.waitForTimeout(300);
       
       // Fill contact info
       await dialog.locator('input').nth(1).fill(generateRandomPhone());
@@ -117,7 +124,7 @@ test.describe('Clients', () => {
       const dialog = page.locator('[role="dialog"]');
       await dialog.locator('input').first().fill(generateRandomName('Particular'));
       
-      await dialog.locator('[role="combobox"]').click();
+      await dialog.locator('[role="combobox"]').filter({ hasText: 'Particular' }).click();
       await page.waitForTimeout(300);
       await page.locator('[role="option"]:has-text("Particular")').click();
       
@@ -132,7 +139,7 @@ test.describe('Clients', () => {
       const dialog = page.locator('[role="dialog"]');
       await dialog.locator('input').first().fill(generateRandomName('Empresa'));
       
-      await dialog.locator('[role="combobox"]').click();
+      await dialog.locator('[role="combobox"]').filter({ hasText: 'Particular' }).click();
       await page.waitForTimeout(300);
       await page.locator('[role="option"]:has-text("Empresa")').click();
       
@@ -147,7 +154,7 @@ test.describe('Clients', () => {
       const dialog = page.locator('[role="dialog"]');
       await dialog.locator('input').first().fill(generateRandomName('Iglesia'));
       
-      await dialog.locator('[role="combobox"]').click();
+      await dialog.locator('[role="combobox"]').filter({ hasText: 'Particular' }).click();
       await page.waitForTimeout(300);
       await page.locator('[role="option"]:has-text("Iglesia")').click();
       
@@ -162,7 +169,7 @@ test.describe('Clients', () => {
       const dialog = page.locator('[role="dialog"]');
       await dialog.locator('input').first().fill(generateRandomName('Institucion'));
       
-      await dialog.locator('[role="combobox"]').click();
+      await dialog.locator('[role="combobox"]').filter({ hasText: 'Particular' }).click();
       await page.waitForTimeout(300);
       await page.locator('[role="option"]:has-text("Institución")').click();
       
@@ -335,7 +342,7 @@ test.describe('Clients', () => {
       await page.waitForTimeout(500);
       
       const editDialog = page.locator('[role="dialog"]');
-      await editDialog.locator('[role="combobox"]').click();
+      await editDialog.locator('[role="combobox"]').filter({ hasText: 'Particular' }).click();
       await page.waitForTimeout(300);
       await page.locator('[role="option"]:has-text("Empresa")').click();
       
@@ -480,7 +487,7 @@ test.describe('Clients', () => {
       await page.waitForTimeout(500);
       const dialog2 = page.locator('[role="dialog"]');
       await dialog2.locator('input').first().fill(generateRandomName('Empresa1'));
-      await dialog2.locator('[role="combobox"]').click();
+      await dialog2.locator('[role="combobox"]').filter({ hasText: 'Particular' }).click();
       await page.locator('[role="option"]:has-text("Empresa")').click();
       await dialog2.locator('button[type="submit"]').click();
       await page.waitForTimeout(1000);
@@ -509,7 +516,7 @@ test.describe('Clients', () => {
       await page.waitForTimeout(500);
       const dialog = page.locator('[role="dialog"]');
       await dialog.locator('input').first().fill(generateRandomName('Badge'));
-      await dialog.locator('[role="combobox"]').click();
+      await dialog.locator('[role="combobox"]').filter({ hasText: 'Particular' }).click();
       await page.locator('[role="option"]:has-text("Empresa")').click();
       await dialog.locator('button[type="submit"]').click();
       await page.waitForTimeout(1000);

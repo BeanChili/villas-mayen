@@ -11,30 +11,27 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
     }
 
     const quote = await prisma.quote.findUnique({
       where: { id: params.id },
       include: {
         client: true,
-        items: {
-          include: { product: true },
-        },
+        spaces: true,
+        items: { include: { product: true, furniture: true } },
+        reservation: { include: { payments: true, eventClosing: { include: { items: { include: { furniture: true } } } } } },
       },
     })
 
     if (!quote) {
-      return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 })
+      return NextResponse.json({ success: false, error: "Cotización no encontrada" }, { status: 404 })
     }
 
-    return NextResponse.json(quote)
+    return NextResponse.json({ success: true, data: quote })
   } catch (error) {
     console.error("Error fetching quote:", error)
-    return NextResponse.json(
-      { error: "Error al obtener la cotización" },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: "Error al obtener cotización" }, { status: 500 })
   }
 }
 
@@ -45,50 +42,71 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
     }
 
     const role = (session.user as any).role as any
     if (!hasPermission(role, "quotes", "update")) {
-      return NextResponse.json(
-        { error: "No tienes permiso para actualizar cotizaciones" },
-        { status: 403 }
-      )
+      return NextResponse.json({ success: false, error: "Sin permiso" }, { status: 403 })
     }
 
     const body = await request.json()
-    const { notes, items, totalAmount } = body
+    const { notes, items, spaces, currency, exchangeRate, guestCount, totalAmount } = body
 
-    // Delete existing items and recreate
-    await prisma.quoteItem.deleteMany({ where: { quoteId: params.id } })
+    // Recrear espacios
+    if (spaces) {
+      await prisma.quoteSpace.deleteMany({ where: { quoteId: params.id } })
+    }
+
+    // Recrear items
+    if (items) {
+      await prisma.quoteItem.deleteMany({ where: { quoteId: params.id } })
+    }
 
     const quote = await prisma.quote.update({
       where: { id: params.id },
       data: {
         notes,
-        totalAmount,
-        items: {
+        currency,
+        exchangeRate,
+        guestCount,
+        totalAmount: totalAmount || 0,
+        spaces: spaces ? {
+          create: spaces.map((s: any) => ({
+            locationType: s.locationType,
+            locationId: s.locationId,
+            locationName: s.locationName,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            pricingMode: s.pricingMode || "PER_SPACE",
+            unitPrice: s.unitPrice || 0,
+            totalPrice: s.totalPrice || 0,
+            notes: s.notes,
+          })),
+        } : undefined,
+        items: items ? {
           create: items.map((item: any) => ({
             productId: item.productId || null,
             name: item.name,
             category: item.category,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            totalPrice: item.quantity * item.unitPrice,
+            pricingMode: item.pricingMode || null,
+            scheduledDate: item.scheduledDate ? new Date(item.scheduledDate) : null,
+            startTime: item.startTime || null,
+            endTime: item.endTime || null,
+            discountType: item.discountType || null,
+            discountValue: item.discountValue || 0,
+            totalPrice: item.totalPrice || item.quantity * item.unitPrice,
           })),
-        },
+        } : undefined,
       },
-      include: {
-        items: true,
-      },
+      include: { items: true, spaces: true },
     })
 
-    return NextResponse.json(quote)
+    return NextResponse.json({ success: true, data: quote })
   } catch (error) {
     console.error("Error updating quote:", error)
-    return NextResponse.json(
-      { error: "Error al actualizar la cotización" },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: "Error al actualizar cotización" }, { status: 500 })
   }
 }

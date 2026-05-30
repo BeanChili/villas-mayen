@@ -92,7 +92,7 @@ test.describe('Dashboard', () => {
       await page.click('text=Ver Reservaciones');
       await page.waitForURL('**/reservations');
       
-      await expect(page.locator('h1:has-text("Reservaciones")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Reservaciones")')).toBeVisible();
     });
 
     test('should navigate to clients from quick action', async ({ page }) => {
@@ -101,7 +101,7 @@ test.describe('Dashboard', () => {
       await page.click('text=Ver Clientes');
       await page.waitForURL('**/clients');
       
-      await expect(page.locator('h1:has-text("Clientes")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Clientes")')).toBeVisible();
     });
 
     test('should navigate to quotes from quick action', async ({ page }) => {
@@ -110,7 +110,7 @@ test.describe('Dashboard', () => {
       await page.click('text=Ver Cotizaciones');
       await page.waitForURL('**/quotes');
       
-      await expect(page.locator('h1:has-text("Cotizaciones")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Cotizaciones")')).toBeVisible();
     });
   });
 

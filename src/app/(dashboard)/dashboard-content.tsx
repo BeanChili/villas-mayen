@@ -1,7 +1,8 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, Users, Package, Wallet, Clock, AlertTriangle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Calendar, Users, Package, Wallet, Clock, AlertTriangle, Play, MapPin, DollarSign } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency, formatDate, getStatusColor, parseSchedule } from "@/lib/utils"
 
@@ -29,6 +30,7 @@ interface DashboardData {
   newClientsThisMonth: number
   furnitureInUse: number
   damagedFurniture: number
+  executingEvents: any[]
 }
 
 interface User {
@@ -139,6 +141,72 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Executing Events - Dashboard del Día */}
+      {data.executingEvents && data.executingEvents.length > 0 && (
+        <Card className="border-purple-200 bg-purple-50/50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Play className="w-5 h-5 text-purple-600" />
+              Eventos en Ejecución Hoy
+              <Badge className="bg-purple-600 text-white">{data.executingEvents.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {data.executingEvents.map((event: any) => (
+                <Card key={event.id} className="bg-white">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-lg">{event.client.name}</p>
+                      <Badge 
+                        variant="outline" 
+                        className="border-purple-300 text-purple-700"
+                      >
+                        EN EJECUCIÓN
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <MapPin className="w-4 h-4" />
+                        <span>{event.spaces.map((s: any) => s.locationName).join(", ")}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Clock className="w-4 h-4" />
+                        <span>
+                          {event.spaces.map((s: any) => `${s.startTime}-${s.endTime}`).join(" | ")}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <DollarSign className="w-4 h-4" />
+                        <span className="font-mono">
+                          Total: {formatCurrency(event.totalAmount)} | 
+                          Pagado: {formatCurrency(event.reservation?.paidAmount || 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {event.reservation && event.reservation.payments.length > 0 && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 mb-1">Pagos:</p>
+                        <div className="space-y-1">
+                          {event.reservation.payments.map((p: any, i: number) => (
+                            <div key={i} className="flex justify-between text-xs">
+                              <span>{new Date(p.createdAt).toLocaleDateString("es-GT")}</span>
+                              <span className="font-mono">{formatCurrency(p.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Upcoming Events */}

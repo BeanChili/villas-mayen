@@ -16,19 +16,34 @@ import {
   LogOut,
   Menu,
   X,
+  BookOpen,
+  MapPin,
+  ShoppingBag,
+  Home,
 } from "lucide-react"
 import { useState } from "react"
 
-const navigation = [
+const mainNavigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Reservaciones", href: "/reservations", icon: Calendar },
   { name: "Clientes", href: "/clients", icon: Users },
   { name: "Cotizaciones", href: "/quotes", icon: FileText },
   { name: "Inventario", href: "/inventory", icon: Package },
+]
+
+const catalogNavigation = [
+  { name: "Ubicaciones", href: "/catalog/locations", icon: MapPin },
+  { name: "Productos", href: "/catalog/products", icon: ShoppingBag },
+  { name: "Habitaciones", href: "/rooms", icon: Home },
+]
+
+const bottomNavigation = [
   { name: "Gastos", href: "/expenses", icon: Wallet },
   { name: "Eventos", href: "/events", icon: Archive },
   { name: "Configuración", href: "/settings", icon: Settings },
 ]
+
+const allNavigation = [...mainNavigation, ...catalogNavigation, ...bottomNavigation]
 
 export default function DashboardLayout({
   children,
@@ -75,8 +90,54 @@ export default function DashboardLayout({
 
         {/* Navigation */}
         <nav className="px-3 py-4 space-y-0.5">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href || 
+          {mainNavigation.map((item) => {
+            const isActive = pathname === item.href ||
+              (item.href !== "/" && pathname.startsWith(item.href + "/")) ||
+              (item.href === "/" && pathname === "/")
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "vm-sidebar-link",
+                  isActive ? "vm-sidebar-link--active" : "vm-sidebar-link--idle"
+                )}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <item.icon className="w-[18px] h-[18px]" />
+                {item.name}
+              </Link>
+            )
+          })}
+
+          <div className="pt-2">
+            <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              Catálogo
+            </div>
+            <div className="space-y-0.5">
+              {catalogNavigation.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={cn(
+                      "vm-sidebar-link pl-9",
+                      isActive ? "vm-sidebar-link--active" : "vm-sidebar-link--idle"
+                    )}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon className="w-[18px] h-[18px]" />
+                    {item.name}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+
+          {bottomNavigation.map((item) => {
+            const isActive = pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href + "/")) ||
               (item.href === "/" && pathname === "/")
             return (
@@ -134,7 +195,7 @@ export default function DashboardLayout({
 
           <div className="flex-1">
             <h1 className="text-[15px] font-semibold text-foreground">
-              {navigation.find(n => 
+              {allNavigation.find(n =>
                 n.href === "/" ? pathname === "/" : pathname.startsWith(n.href)
               )?.name || "Dashboard"}
             </h1>

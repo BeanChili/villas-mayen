@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { roleLabels } from "@/types"
-import { Plus, Search, Users, Loader2, Edit, Trash2, Shield } from "lucide-react"
+import { Plus, Search, Users, Loader2, Edit, Trash2, Shield, DollarSign, TrendingUp } from "lucide-react"
 
 interface User {
   id: string
@@ -41,8 +41,14 @@ export default function SettingsPage() {
     active: true,
   })
 
+  // Exchange rate state
+  const [exchangeRate, setExchangeRate] = useState<number>(7.85)
+  const [newRate, setNewRate] = useState<string>("")
+  const [savingRate, setSavingRate] = useState(false)
+
   useEffect(() => {
     fetchUsers()
+    fetchExchangeRate()
   }, [])
 
   async function fetchUsers() {
@@ -54,6 +60,47 @@ export default function SettingsPage() {
       console.error("Error fetching users:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchExchangeRate() {
+    try {
+      const res = await fetch("/api/exchange-rate")
+      const data = await res.json()
+      if (data.success && data.data) {
+        setExchangeRate(data.data.rate)
+        setNewRate(data.data.rate.toString())
+      }
+    } catch (error) {
+      console.error("Error fetching exchange rate:", error)
+    }
+  }
+
+  const handleUpdateRate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const rate = parseFloat(newRate)
+    if (!rate || rate <= 0) {
+      alert("Tasa inválida")
+      return
+    }
+    setSavingRate(true)
+    try {
+      const res = await fetch("/api/exchange-rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rate }),
+      })
+      if (res.ok) {
+        setExchangeRate(rate)
+        alert("Tipo de cambio actualizado correctamente")
+      } else {
+        alert("Error al actualizar tipo de cambio")
+      }
+    } catch (error) {
+      console.error("Error updating rate:", error)
+      alert("Error al actualizar tipo de cambio")
+    } finally {
+      setSavingRate(false)
     }
   }
 
@@ -207,6 +254,41 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Exchange Rate Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5" />
+            Tipo de Cambio
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-4">
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground mb-1">Tasa actual</p>
+              <p className="text-2xl font-bold">1 USD = {exchangeRate.toFixed(2)} GTQ</p>
+            </div>
+            <form onSubmit={handleUpdateRate} className="flex items-end gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Nueva tasa</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newRate}
+                  onChange={(e) => setNewRate(e.target.value)}
+                  placeholder="7.85"
+                  className="w-32"
+                />
+              </div>
+              <Button type="submit" disabled={savingRate}>
+                {savingRate ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
+                Actualizar
+              </Button>
+            </form>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <div className="flex items-center gap-4">
