@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Fragment, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { quoteStatusLabels, quoteStatusColors, productCategoryLabels, locationTypeLabels, itemReturnStatusLabels } from "@/types"
-import { formatCurrency, formatCurrencyByCode, getScheduleFromTime } from "@/lib/utils"
+import { formatCurrency, formatCurrencyByCode, formatParkingSpots, getScheduleFromTime } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { Plus, Search, Loader2, Eye, Send, Check, X, FileText, Trash2, Clock, MapPin, Wallet, Mail, AlertTriangle } from "lucide-react"
+import { Plus, Search, Loader2, Eye, Send, Check, X, FileText, Trash2, Clock, MapPin, Wallet, Mail, AlertTriangle, Pencil } from "lucide-react"
 
 // ─── tipos locales ────────────────────────────────────────────────────────────
 
@@ -28,12 +29,18 @@ interface QuoteSpace {
   locationType: string; locationId: string; locationName: string
   startTime: string; endTime: string
   pricingMode: string; unitPrice: number; totalPrice: number
+  adjustmentType?: string; notes?: string
+  roomFrom?: number; roomTo?: number
+}
+interface QuoteItemDay {
+  date: string; quantity: number
 }
 interface QuoteItem {
   id?: string; productId?: string; furnitureId?: string; name: string; category: string
-  quantity: number; unitPrice: number; totalPrice: number
+  dailyQuantities?: QuoteItemDay[]; unitPrice: number; totalPrice: number
   discountType?: string; discountValue?: number
-  scheduledDate?: string; startTime?: string; endTime?: string
+  menuNumber?: number; guestType?: string; notes?: string
+  adjustmentType?: string; pricingMode?: string
 }
 interface Payment {
   id: string; amount: number; createdAt: string; createdByName: string; notes?: string
@@ -46,16 +53,14 @@ interface EventClosing {
   id: string; closingDate: string; returnStatus: string; observations?: string
   damageCost: number; lossCost: number; items: EventClosingItem[]
 }
-interface ReservationDetail {
-  id: string; status: string; paidAmount: number; pendingAmount: number
-  payments: Payment[]; eventClosing?: EventClosing
-}
 interface Quote {
   id: string; clientId: string; client: { name: string }
-  eventDate: string; currency: string; guestCount?: number
-  status: string; totalAmount: number; notes?: string
+  eventDate: string; endDate?: string; currency: string; guestCount?: number
+  status: string; totalAmount: number; notes?: string; eventTitle?: string
+  parkingSpot?: string; confirmationDate?: string; executionDate?: string; completionDate?: string
   spaces?: QuoteSpace[]; items?: QuoteItem[]
-  reservation?: ReservationDetail
+  paidAmount?: number; pendingAmount?: number; paymentStatus?: string
+  payments?: Payment[]; eventClosing?: EventClosing
   createdAt: string
 }
 interface FurnitureItem {
@@ -73,9 +78,31 @@ const LOCATION_OPTIONS = [
   { value: "ROOM", label: "Habitación" },
 ]
 
+const PARKING_OPTIONS = [
+  { value: "Predio", label: "Predio" },
+  ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `Grupo ${i + 1}` })),
+]
+
+function parseParkingSpots(value?: string): string[] {
+  return (value || "").split(",").map(v => v.trim()).filter(Boolean)
+}
+
 // ─── componente principal ─────────────────────────────────────────────────────
 
 export default function QuotesPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
+      <QuotesContent />
+    </Suspense>
+  )
+}
+
+function QuotesContent() {
+  const searchParams = useSearchParams()
+  const urlId = searchParams.get("id")
+  const urlClient = searchParams.get("client")
+  const urlNew = searchParams.get("new")
+  
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -84,7 +111,9 @@ export default function QuotesPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [clientFilter, setClientFilter] = useState<string>(urlClient || "all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null)
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
   const [clientSearch, setClientSearch] = useState("")
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
@@ -109,6 +138,13 @@ export default function QuotesPage() {
   const [savingLiquidation, setSavingLiquidation] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
 
+  // Advance payment modal
+  const [advancePaymentOpen, setAdvancePaymentOpen] = useState(false)
+  const [advancePaymentAmount, setAdvancePaymentAmount] = useState("")
+  const [advancePaymentQuoteId, setAdvancePaymentQuoteId] = useState("")
+  const [advancePaymentTotal, setAdvancePaymentTotal] = useState(0)
+  const [advancePaymentCurrency, setAdvancePaymentCurrency] = useState("GTQ")
+
   // Menu dialog state (F3)
   const [menuDialogOpen, setMenuDialogOpen] = useState(false)
   const [selectedMenuProduct, setSelectedMenuProduct] = useState<Product | null>(null)
@@ -117,10 +153,13 @@ export default function QuotesPage() {
     startTime: "",
     endTime: "",
     quantity: 1,
+    menuNumber: 1,
+    guestType: "ADULTO" as "ADULTO" | "NINO",
   })
 
   const [formData, setFormData] = useState({
     clientId: "",
+    eventTitle: "",
     eventDate: "",
     endDate: "",
     currency: "GTQ" as "GTQ" | "USD",
@@ -129,9 +168,27 @@ export default function QuotesPage() {
     spaces: [] as QuoteSpace[],
     notes: "",
     items: [] as QuoteItem[],
+    parkingSpot: "",
+    menuNumber: 1,
+    guestType: "ADULTO" as "ADULTO" | "NINO",
   })
 
   useEffect(() => { fetchData(); fetchExchangeRate() }, [])
+
+  // Auto-open quote if URL has id param
+  useEffect(() => {
+    if (urlId && quotes.length > 0) {
+      const match = quotes.find(q => q.id === urlId)
+      if (match) viewQuoteDetails(match)
+    }
+  }, [urlId, quotes])
+
+  // Auto-open "Nueva Cotización" dialog if URL has new=true
+  useEffect(() => {
+    if (urlNew === "true") {
+      setIsDialogOpen(true)
+    }
+  }, [urlNew])
 
   async function fetchExchangeRate() {
     try {
@@ -158,7 +215,7 @@ export default function QuotesPage() {
       const p = await productsRes.json()
       const f = await furnitureRes.json()
       const l = await locationsRes.json()
-      setQuotes(q.data || q)
+      setQuotes(Array.isArray(q?.data) ? q.data : Array.isArray(q) ? q : [])
       setClients(Array.isArray(c) ? c : c.data || [])
       setProducts(Array.isArray(p) ? p : p.data || [])
       setFurniture(Array.isArray(f) ? f : f.data || [])
@@ -171,9 +228,72 @@ export default function QuotesPage() {
   // ── form logic ──────────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setFormData({ clientId: "", eventDate: "", endDate: "", currency: "GTQ", exchangeRate: exchangeRate || 7.85, guestCount: 0, spaces: [], notes: "", items: [] })
+    setFormData({ clientId: "", eventTitle: "", eventDate: "", endDate: "", currency: "GTQ", exchangeRate: exchangeRate || 7.85, guestCount: 0, spaces: [], notes: "", items: [], menuNumber: 1, guestType: "ADULTO", parkingSpot: "" })
     setClientSearch("")
     setClientDropdownOpen(false)
+    setEditingQuoteId(null)
+  }
+
+  const openEditQuote = async (quote: Quote) => {
+    try {
+      const response = await fetch(`/api/quotes/${quote.id}`)
+      const data = await response.json()
+      const detail = data.data || data
+      setFormData({
+        clientId: quote.clientId,
+        eventTitle: quote.eventTitle || "",
+        eventDate: quote.eventDate.split("T")[0],
+        endDate: (quote.endDate || quote.eventDate).split("T")[0],
+        currency: quote.currency as "GTQ" | "USD",
+        exchangeRate: exchangeRate || 7.85,
+        guestCount: quote.guestCount || 0,
+        spaces: (detail.spaces || []).map((s: any) => ({
+          id: s.id,
+          locationType: s.locationType,
+          locationId: s.locationId,
+          locationName: s.locationName,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          pricingMode: s.pricingMode,
+          unitPrice: s.unitPrice,
+          totalPrice: s.totalPrice,
+          adjustmentType: s.adjustmentType,
+          notes: s.notes,
+        })),
+        notes: quote.notes || "",
+        items: (detail.items || []).map((it: any) => {
+          const dailyQuantities = (it.dailyQuantities || []).map((dq: any) => ({ date: dq.date.split("T")[0], quantity: dq.quantity }))
+          const totalQty = dailyQuantities.reduce((sum: number, dq: any) => sum + (dq.quantity || 0), 0)
+          const t = totalQty * it.unitPrice
+          const d = it.discountType === "PERCENT" ? t * ((it.discountValue || 0) / 100) : (it.discountValue || 0)
+          const totalPrice = it.adjustmentType === "SURCHARGE" ? t + d : t - d
+          return {
+          id: it.id,
+          productId: it.productId || undefined,
+          furnitureId: it.furnitureId || undefined,
+          name: it.name,
+          category: it.category,
+          dailyQuantities,
+          unitPrice: it.unitPrice,
+          totalPrice,
+          discountType: it.discountType || undefined,
+          discountValue: it.discountValue || 0,
+          adjustmentType: it.adjustmentType || undefined,
+          menuNumber: it.menuNumber || undefined,
+          guestType: it.guestType || undefined,
+          notes: it.notes || undefined,
+          pricingMode: it.pricingMode || undefined,
+        }}),
+        parkingSpot: quote.parkingSpot || "",
+        menuNumber: 1,
+        guestType: "ADULTO",
+      })
+      setEditingQuoteId(quote.id)
+      setSelectedQuote(null)
+      setIsDialogOpen(true)
+    } catch (error) {
+      console.error("Error loading quote for edit:", error)
+    }
   }
 
   const addSpace = () => {
@@ -221,13 +341,11 @@ export default function QuotesPage() {
         spaces[index].unitPrice = prev.currency === "USD" ? +(basePrice / exchangeRate).toFixed(2) : basePrice
       }
 
-      // Recalcular totalPrice
-      if (field === "unitPrice" || field === "pricingMode") {
-        const price = spaces[index].pricingMode === "PER_PERSON" && prev.guestCount > 0
-          ? prev.guestCount * (spaces[index].unitPrice || 0)
-          : spaces[index].unitPrice || 0
-        spaces[index].totalPrice = price
-      }
+      // Recalcular totalPrice (siempre, para cubrir locationId también)
+      const price = spaces[index].pricingMode === "PER_PERSON" && prev.guestCount > 0
+        ? prev.guestCount * (spaces[index].unitPrice || 0)
+        : spaces[index].unitPrice || 0
+      spaces[index].totalPrice = price
 
       return { ...prev, spaces }
     })
@@ -261,9 +379,10 @@ export default function QuotesPage() {
           let newPrice = item.unitPrice
           if (oldCurrency === "GTQ" && newCurrency === "USD") newPrice = +(item.unitPrice / exchangeRate).toFixed(2)
           else if (oldCurrency === "USD" && newCurrency === "GTQ") newPrice = +(item.unitPrice * exchangeRate).toFixed(2)
-          const t = item.quantity * newPrice
+          const totalQty = item.dailyQuantities?.reduce((sum: number, dq: any) => sum + (dq.quantity || 0), 0) || 0
+          const t = totalQty * newPrice
           const d = item.discountType === "PERCENT" ? t * ((item.discountValue || 0) / 100) : (item.discountValue || 0)
-          return { ...item, unitPrice: newPrice, totalPrice: t - d }
+          return { ...item, unitPrice: newPrice, totalPrice: item.adjustmentType === "SURCHARGE" ? t + d : t - d }
         }),
       }
     })
@@ -271,6 +390,19 @@ export default function QuotesPage() {
 
   const removeSpace = (index: number) => {
     setFormData(prev => ({ ...prev, spaces: prev.spaces.filter((_, i) => i !== index) }))
+  }
+
+  const getEventDates = (): string[] => {
+    if (!formData.eventDate) return []
+    const start = new Date(formData.eventDate + "T12:00:00")
+    const end = formData.endDate ? new Date(formData.endDate + "T12:00:00") : start
+    const dates: string[] = []
+    const current = new Date(start)
+    while (current <= end) {
+      dates.push(current.toISOString().split('T')[0])
+      current.setDate(current.getDate() + 1)
+    }
+    return dates
   }
 
   const addItem = (product: Product) => {
@@ -282,6 +414,8 @@ export default function QuotesPage() {
         startTime: "",
         endTime: "",
         quantity: formData.guestCount || 1,
+        menuNumber: 1,
+        guestType: "ADULTO",
       })
       setMenuDialogOpen(true)
       return
@@ -290,17 +424,32 @@ export default function QuotesPage() {
     // Convertir precio si la cotización es USD
     const price = formData.currency === "USD" ? +(product.unitPrice / exchangeRate).toFixed(2) : product.unitPrice
     const exists = formData.items.find(i => i.productId === product.id)
+    const eventDates = getEventDates()
+    
     if (exists) {
       setFormData(prev => ({
         ...prev,
         items: prev.items.map(i =>
-          i.productId === product.id ? { ...i, quantity: i.quantity + 1, totalPrice: (i.quantity + 1) * i.unitPrice - (i.discountValue || 0) } : i
+          i.productId === product.id ? { 
+            ...i, 
+            dailyQuantities: eventDates.map(date => ({ date, quantity: (i.dailyQuantities?.find((dq: any) => dq.date === date)?.quantity || 0) + 1 })),
+            totalPrice: eventDates.reduce((sum, date) => sum + ((i.dailyQuantities?.find((dq: any) => dq.date === date)?.quantity || 0) + 1) * i.unitPrice, 0) - (i.discountValue || 0)
+          } : i
         ),
       }))
     } else {
       setFormData(prev => ({
         ...prev,
-        items: [...prev.items, { productId: product.id, name: product.name, category: product.category, quantity: 1, unitPrice: price, totalPrice: price }],
+        items: [...prev.items, { 
+          productId: product.id, 
+          name: product.name, 
+          category: product.category, 
+          dailyQuantities: eventDates.map(date => ({ date, quantity: 1 })),
+          unitPrice: price, 
+          totalPrice: eventDates.length * price,
+          menuNumber: prev.menuNumber, 
+          guestType: prev.guestType 
+        }],
       }))
     }
   }
@@ -311,17 +460,30 @@ export default function QuotesPage() {
       ? +(rentalPrice / exchangeRate).toFixed(2) 
       : rentalPrice
     const exists = formData.items.find(i => i.furnitureId === furnitureItem.id)
+    const eventDates = getEventDates()
+    
     if (exists) {
       setFormData(prev => ({
         ...prev,
         items: prev.items.map(i =>
-          i.furnitureId === furnitureItem.id ? { ...i, quantity: i.quantity + 1, totalPrice: (i.quantity + 1) * i.unitPrice } : i
+          i.furnitureId === furnitureItem.id ? { 
+            ...i, 
+            dailyQuantities: eventDates.map(date => ({ date, quantity: (i.dailyQuantities?.find((dq: any) => dq.date === date)?.quantity || 0) + 1 })),
+            totalPrice: eventDates.reduce((sum, date) => sum + ((i.dailyQuantities?.find((dq: any) => dq.date === date)?.quantity || 0) + 1) * i.unitPrice, 0)
+          } : i
         ),
       }))
     } else {
       setFormData(prev => ({
         ...prev,
-        items: [...prev.items, { furnitureId: furnitureItem.id, name: furnitureItem.name, category: "MOBILIARIO", quantity: 1, unitPrice: price, totalPrice: price }],
+        items: [...prev.items, { 
+          furnitureId: furnitureItem.id, 
+          name: furnitureItem.name, 
+          category: "MOBILIARIO", 
+          dailyQuantities: eventDates.map(date => ({ date, quantity: 1 })),
+          unitPrice: price, 
+          totalPrice: eventDates.length * price 
+        }],
       }))
     }
   }
@@ -337,12 +499,14 @@ export default function QuotesPage() {
         productId: selectedMenuProduct.id,
         name: selectedMenuProduct.name,
         category: selectedMenuProduct.category,
-        quantity: qty,
+        dailyQuantities: menuFormData.scheduledDate ? [{ date: menuFormData.scheduledDate, quantity: qty }] : getEventDates().map(date => ({ date, quantity: qty })),
         unitPrice: price,
         totalPrice: total,
         scheduledDate: menuFormData.scheduledDate,
         startTime: menuFormData.startTime,
         endTime: menuFormData.endTime,
+        menuNumber: menuFormData.menuNumber,
+        guestType: menuFormData.guestType,
       }],
     }))
     setMenuDialogOpen(false)
@@ -353,11 +517,30 @@ export default function QuotesPage() {
     setFormData(prev => {
       const items = [...prev.items]
       items[index] = { ...items[index], [field]: value }
-      if (field === "quantity" || field === "unitPrice" || field === "discountValue" || field === "discountType") {
-        const t = items[index].quantity * items[index].unitPrice
+      if (field === "dailyQuantities" || field === "unitPrice" || field === "discountValue" || field === "discountType" || field === "adjustmentType") {
+        const totalQty = items[index].dailyQuantities?.reduce((sum: number, dq: any) => sum + (dq.quantity || 0), 0) || 0
+        const t = totalQty * items[index].unitPrice
         const d = items[index].discountType === "PERCENT" ? t * ((items[index].discountValue || 0) / 100) : (items[index].discountValue || 0)
-        items[index].totalPrice = t - d
+        items[index].totalPrice = items[index].adjustmentType === "SURCHARGE" ? t + d : t - d
       }
+      return { ...prev, items }
+    })
+  }
+
+  const updateDailyQuantity = (itemIndex: number, date: string, quantity: number) => {
+    setFormData(prev => {
+      const items = [...prev.items]
+      const item = { ...items[itemIndex] }
+      const dq = item.dailyQuantities || []
+      const exists = dq.some((d: any) => d.date === date)
+      item.dailyQuantities = exists
+        ? dq.map((d: any) => d.date === date ? { ...d, quantity } : d)
+        : [...dq, { date, quantity }]
+      const totalQty = item.dailyQuantities.reduce((sum: number, d: any) => sum + (d.quantity || 0), 0)
+      const t = totalQty * item.unitPrice
+      const d = item.discountType === "PERCENT" ? t * ((item.discountValue || 0) / 100) : (item.discountValue || 0)
+      item.totalPrice = item.adjustmentType === "SURCHARGE" ? t + d : t - d
+      items[itemIndex] = item
       return { ...prev, items }
     })
   }
@@ -374,10 +557,13 @@ export default function QuotesPage() {
     setSaving(true)
     try {
       const totalAmount = formData.spaces.reduce((s, sp) => s + sp.totalPrice, 0) +
-        formData.items.reduce((s, it) => s + it.totalPrice, 0)
+        formData.items.reduce((s, it) => s + (it.totalPrice || 0), 0)
 
-      const response = await fetch("/api/quotes", {
-        method: "POST",
+      const url = editingQuoteId ? `/api/quotes/${editingQuoteId}` : "/api/quotes"
+      const method = editingQuoteId ? "PUT" : "POST"
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...formData, totalAmount }),
       })
@@ -385,21 +571,34 @@ export default function QuotesPage() {
         setIsDialogOpen(false); resetForm(); fetchData()
       } else {
         const err = await response.json()
-        alert(err.error || "Error al crear cotización")
+        alert(err.error || (editingQuoteId ? "Error al actualizar cotización" : "Error al crear cotización"))
       }
     } catch (error) {
-      console.error("Error creating quote:", error)
+      console.error("Error saving quote:", error)
     } finally { setSaving(false) }
   }
 
   // ── status change ───────────────────────────────────────────────────────────
 
   const handleStatusChange = async (quoteId: string, status: string) => {
+    let body: any = { status }
+
+    if (status === "CONFIRMADA") {
+      const quote = quotes.find(q => q.id === quoteId) || selectedQuote
+      const total = quote?.totalAmount || 0
+      setAdvancePaymentQuoteId(quoteId)
+      setAdvancePaymentTotal(total)
+      setAdvancePaymentCurrency(quote?.currency || "GTQ")
+      setAdvancePaymentAmount(String(total))
+      setAdvancePaymentOpen(true)
+      return
+    }
+
     try {
       const res = await fetch(`/api/quotes/${quoteId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       })
       if (res.ok) { fetchData() }
       else {
@@ -411,12 +610,31 @@ export default function QuotesPage() {
     }
   }
 
+  const confirmAdvancePayment = async () => {
+    const amount = parseFloat(advancePaymentAmount) || 0
+    setAdvancePaymentOpen(false)
+    try {
+      const res = await fetch(`/api/quotes/${advancePaymentQuoteId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CONFIRMADA", advancePayment: amount }),
+      })
+      if (res.ok) { fetchData() }
+      else {
+        const err = await res.json()
+        alert(err.error || "Error al confirmar cotización")
+      }
+    } catch (error) {
+      console.error("Error confirming quote:", error)
+    }
+  }
+
   const viewQuoteDetails = async (quote: Quote) => {
     try {
       const response = await fetch(`/api/quotes/${quote.id}`)
       const data = await response.json()
       const detail = data.data || data
-      setSelectedQuote({ ...quote, spaces: detail.spaces, items: detail.items, reservation: detail.reservation })
+      setSelectedQuote({ ...quote, spaces: detail.spaces, items: detail.items, payments: detail.payments, eventClosing: detail.eventClosing, paidAmount: detail.paidAmount, pendingAmount: detail.pendingAmount, paymentStatus: detail.paymentStatus })
     } catch (error) {
       console.error("Error fetching quote details:", error)
     }
@@ -425,14 +643,14 @@ export default function QuotesPage() {
   // ── liquidation ─────────────────────────────────────────────────────────────
 
   const openLiquidation = async () => {
-    if (!selectedQuote?.reservation?.id) return
+    if (!selectedQuote?.id) return
     
     // Use ALL items from the quote (products + furniture)
     const itemsFromQuote = selectedQuote.items
       ?.map((item: any) => ({
         itemId: item.id,
         name: item.name,
-        quantity: item.quantity || 1,
+        quantity: item.dailyQuantities?.reduce((sum: number, dq: any) => sum + dq.quantity, 0) || 0,
         returnStatus: "RETORNADO_OK",
         damageDescription: "",
         repairCost: 0,
@@ -470,7 +688,7 @@ export default function QuotesPage() {
 
   const handleLiquidationSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedQuote?.reservation?.id) return
+    if (!selectedQuote?.id) return
     setSavingLiquidation(true)
     try {
       // 1. Create event closing
@@ -478,7 +696,7 @@ export default function QuotesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          reservationId: selectedQuote.reservation.id,
+          quoteId: selectedQuote.id,
           returnStatus: liquidationReturnStatus,
           observations: liquidationObservations,
           items: liquidationItems,
@@ -550,22 +768,24 @@ export default function QuotesPage() {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating PDF:", error)
-      alert("Error al generar PDF")
+      alert("Error al generar PDF: " + (error?.message || error))
     }
   }
 
   // ── computed ────────────────────────────────────────────────────────────────
 
   const filteredQuotes = quotes.filter(q => {
+    const matchesId = !urlId || q.id === urlId
+    const matchesClient = clientFilter === "all" || q.clientId === clientFilter
     const matchesSearch = q.client.name.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === "all" || q.status === statusFilter
-    return matchesSearch && matchesStatus
+    return matchesId && matchesClient && matchesSearch && matchesStatus
   })
 
   const spacesTotal = formData.spaces.reduce((s, sp) => s + sp.totalPrice, 0)
-  const itemsTotal = formData.items.reduce((s, it) => s + it.totalPrice, 0)
+  const itemsTotal = formData.items.reduce((s, it) => s + (it.totalPrice || 0), 0)
 
   const locationsByType = locations.reduce((acc, loc) => {
     if (!acc[loc.type]) acc[loc.type] = []
@@ -601,6 +821,16 @@ export default function QuotesPage() {
           <Input placeholder="Buscar por cliente..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex rounded-lg overflow-hidden border border-border flex-wrap">
+          <select
+            className="vm-view-switch vm-view-switch--idle text-xs"
+            value={clientFilter}
+            onChange={e => setClientFilter(e.target.value)}
+          >
+            <option value="all">Todos los clientes</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
           {(["all", ...statuses] as const).map(s => (
             <button
               key={s}
@@ -654,6 +884,9 @@ export default function QuotesPage() {
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => viewQuoteDetails(quote)} title="Ver detalle"><Eye className="w-3.5 h-3.5" /></Button>
+                          {quote.status !== "CANCELADO" && quote.status !== "FINALIZADA" && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditQuote(quote)} title="Editar Cotización"><Pencil className="w-3.5 h-3.5" /></Button>
+                          )}
                           {quote.status === "BORRADOR" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-vm-gold" onClick={() => handleStatusChange(quote.id, "ENVIADA")} title="Enviar"><Send className="w-3.5 h-3.5" /></Button>
                           )}
@@ -664,7 +897,7 @@ export default function QuotesPage() {
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-vm-gold" onClick={() => handleStatusChange(quote.id, "ENVIADA")} title="Reenviar"><Send className="w-3.5 h-3.5" /></Button>
                           )}
                           {(quote.status === "CONFIRMADA" || quote.status === "EN_EJECUCION") && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("¿Cancelar esta cotización?")) handleStatusChange(quote.id, "CANCELADO") }} title="Cancelar"><X className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("¿Eliminar esta cotización? Esta acción no se puede deshacer")) handleStatusChange(quote.id, "CANCELADO") }} title="Eliminar Cotización"><X className="w-3.5 h-3.5" /></Button>
                           )}
                           {quote.status === "EN_EJECUCION" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-vm-sienna" onClick={() => { if (confirm("¿Finalizar y liquidar?")) handleStatusChange(quote.id, "FINALIZADA") }} title="Finalizar"><Check className="w-3.5 h-3.5" /></Button>
@@ -682,9 +915,9 @@ export default function QuotesPage() {
 
       {/* ── Dialog: Nueva Cotización ──────────────────────────────────────────── */}
       <Dialog open={isDialogOpen} onOpenChange={open => { setIsDialogOpen(open); if (!open) resetForm() }}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">Nueva Cotización</DialogTitle>
+            <DialogTitle className="font-display text-xl">{editingQuoteId ? "Editar Cotización" : "Nueva Cotización"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Cliente + Fecha + Moneda + Personas */}
@@ -712,6 +945,10 @@ export default function QuotesPage() {
                     </div>
                   )}
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Título del Evento</Label>
+                <Input placeholder="ej: Boda Claudia" value={formData.eventTitle || ""} onChange={e => setFormData({ ...formData, eventTitle: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Fecha del Evento *</Label>
@@ -804,6 +1041,22 @@ export default function QuotesPage() {
                       <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.unitPrice || ""} onChange={e => updateSpace(idx, "unitPrice", parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
+                  {space.locationType === "ROOM" && (
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Hab. desde N°</Label>
+                        <Input type="number" min="1" className="h-8 text-xs" placeholder="1"
+                          value={(space as any).roomFrom || ""} 
+                          onChange={e => updateSpace(idx, "roomFrom", parseInt(e.target.value) || undefined)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Hab. hasta N°</Label>
+                        <Input type="number" min="1" className="h-8 text-xs" placeholder="5"
+                          value={(space as any).roomTo || ""}
+                          onChange={e => updateSpace(idx, "roomTo", parseInt(e.target.value) || undefined)} />
+                      </div>
+                    </div>
+                  )}
                   <div className="text-right text-xs font-mono text-muted-foreground">
                     Subtotal: {formatCurrencyByCode(space.totalPrice, formData.currency)}
                   </div>
@@ -854,17 +1107,20 @@ export default function QuotesPage() {
 
             {/* Items seleccionados */}
             {formData.items.length > 0 && (
-              <div className="rounded-xl border border-border overflow-hidden">
+              <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left p-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Producto</th>
-                      <th className="text-center p-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-24">Fecha</th>
-                      <th className="text-center p-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-24">Hora</th>
-                      <th className="text-center p-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-16">Cant.</th>
-                      <th className="text-center p-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-20">Desc.</th>
-                      <th className="text-right p-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
-                      <th className="w-8"></th>
+                    <tr className="border-b border-border">
+                      <th className="text-left p-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Producto/Servicio</th>
+                      <th className="text-right p-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Precio Unit.</th>
+                      {getEventDates().map(date => (
+                        <th key={date} className="text-center p-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {new Date(date + "T12:00:00").toLocaleDateString("es-GT", { day: "numeric", month: "short" })}
+                        </th>
+                      ))}
+                      <th className="text-center p-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Desc.</th>
+                      <th className="text-right p-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
+                      <th className="p-2.5"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -872,41 +1128,82 @@ export default function QuotesPage() {
                       <tr key={index} className="border-b border-border last:border-0">
                         <td className="p-2.5 font-medium text-xs">
                           {item.name}
+                          {item.menuNumber && <span className="ml-1 text-[10px] text-muted-foreground">(Menú {item.menuNumber})</span>}
+                          {item.guestType && <span className="ml-1 text-[10px] text-muted-foreground">({item.guestType})</span>}
                         </td>
-                        <td className="p-2.5 text-center text-xs text-muted-foreground">
-                          {item.scheduledDate ? new Date(item.scheduledDate).toLocaleDateString("es-GT", { day: "numeric", month: "short" }) : "—"}
-                        </td>
-                        <td className="p-2.5 text-center text-xs text-muted-foreground">
-                          {item.startTime && item.endTime ? `${item.startTime}–${item.endTime}` : item.startTime || "—"}
-                        </td>
-                        <td className="p-2.5 text-center">
-                          <Input type="number" min="1" step="1" value={item.quantity} onChange={e => updateItem(index, "quantity", parseInt(e.target.value) || 1)} className="w-14 h-7 text-center mx-auto font-mono text-xs" />
-                        </td>
-                        <td className="p-2.5 text-center">
-                          <div className="flex items-center gap-1 justify-center">
-                            <select className="h-7 text-xs border border-border rounded bg-background px-1" value={item.discountType || ""} onChange={e => updateItem(index, "discountType", e.target.value || undefined)}>
-                              <option value="">-</option><option value="PERCENT">%</option><option value="FIXED">$</option>
-                            </select>
+                        <td className="p-2.5 text-right font-mono text-xs">{formatCurrencyByCode(item.unitPrice, formData.currency)}</td>
+                        {getEventDates().map(date => {
+                          const dq = item.dailyQuantities?.find((d: any) => d.date === date)
+                          return (
+                            <td key={date} className="p-2.5 text-center">
+                              <Input 
+                                type="number" 
+                                min="0" 
+                                step="1" 
+                                value={dq?.quantity || 0} 
+                                onChange={e => updateDailyQuantity(index, date, parseInt(e.target.value) || 0)} 
+                                className="w-16 h-8 text-center mx-auto font-mono text-sm" 
+                              />
+                            </td>
+                          )
+                        })}
+                        <td className="p-2.5">
+                          <div className="flex flex-col gap-1 min-w-[110px]">
+                            <div className="flex gap-1">
+                              <select className="h-7 flex-1 min-w-0 text-[10px] border border-border rounded bg-background px-1" value={item.adjustmentType || "DISCOUNT"} onChange={e => updateItem(index, "adjustmentType", e.target.value)}>
+                                <option value="DISCOUNT">Desc.</option>
+                                <option value="SURCHARGE">Recargo</option>
+                              </select>
+                              <select className="h-7 w-12 shrink-0 text-xs border border-border rounded bg-background px-1" value={item.discountType || ""} onChange={e => updateItem(index, "discountType", e.target.value || undefined)}>
+                                <option value="">-</option><option value="PERCENT">%</option><option value="FIXED">$</option>
+                              </select>
+                            </div>
                             {item.discountType && (
-                              <Input type="number" min="0" step={item.discountType === "PERCENT" ? "1" : "0.01"} value={item.discountValue || ""} onChange={e => updateItem(index, "discountValue", parseFloat(e.target.value) || 0)} className="w-14 h-7 text-center font-mono text-xs" />
+                              <Input type="number" min="0" step={item.discountType === "PERCENT" ? "1" : "0.01"} value={item.discountValue || ""} onChange={e => updateItem(index, "discountValue", parseFloat(e.target.value) || 0)} className="w-full h-7 text-center font-mono text-xs" />
                             )}
                           </div>
                         </td>
-                        <td className="p-2.5 text-right font-mono text-xs font-medium">{formatCurrencyByCode(item.totalPrice, formData.currency)}</td>
+                        <td className="p-2.5 text-right font-mono text-xs font-medium">{formatCurrencyByCode(item.totalPrice || 0, formData.currency)}</td>
                         <td className="p-2.5"><button type="button" onClick={() => removeItem(index)} className="text-muted-foreground hover:text-destructive"><X className="w-3 h-3" /></button></td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="bg-muted/30">
-                      <td colSpan={5} className="p-2.5 text-right text-sm font-semibold text-muted-foreground">Total:</td>
-                      <td className="p-2.5 text-right font-mono font-semibold text-foreground">{formatCurrencyByCode(spacesTotal + itemsTotal, formData.currency)}</td>
-                      <td></td>
+                      <td colSpan={3 + getEventDates().length} className="p-2 text-right text-sm font-semibold text-muted-foreground">Total:</td>
+                      <td className="p-2 text-right font-mono font-semibold text-foreground">{formatCurrencyByCode(spacesTotal + itemsTotal, formData.currency)}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             )}
+
+            {/* Parqueo */}
+            <div className="space-y-2">
+              <Label>Parqueo</Label>
+              <div className="flex flex-wrap gap-2">
+                {PARKING_OPTIONS.map(opt => {
+                  const selected = parseParkingSpots(formData.parkingSpot)
+                  const isSelected = selected.includes(opt.value)
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        const next = isSelected ? selected.filter(v => v !== opt.value) : [...selected, opt.value]
+                        setFormData({ ...formData, parkingSpot: next.join(",") })
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-sm border transition-colors",
+                        isSelected ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-muted"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
             {/* Notas */}
             <div className="space-y-2">
@@ -914,9 +1211,56 @@ export default function QuotesPage() {
               <Input value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Notas adicionales (opcional)" />
             </div>
 
+            {/* Vista Previa */}
+            {formData.spaces.length > 0 && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Vista Previa</p>
+                <div className="text-sm">
+                  {formData.clientId && (
+                    <p><span className="text-muted-foreground">Cliente:</span> {clients.find(c => c.id === formData.clientId)?.name || "Seleccionado"}</p>
+                  )}
+                  <p><span className="text-muted-foreground">Fecha:</span> {formData.eventDate}{formData.endDate && formData.endDate !== formData.eventDate ? ` → ${formData.endDate}` : ''}</p>
+                  {formData.eventTitle && <p><span className="text-muted-foreground">Evento:</span> {formData.eventTitle}</p>}
+                  {formData.parkingSpot && <p><span className="text-muted-foreground">Parqueo:</span> {formatParkingSpots(formData.parkingSpot)}</p>}
+                </div>
+                <div className="border-t border-border pt-2">
+                  <p className="text-xs font-medium mb-1">Espacios:</p>
+                  {formData.spaces.map((sp, i) => (
+                    <div key={i} className="flex justify-between text-xs py-0.5">
+                      <span>{sp.locationName || `Espacio ${i+1}`} ({sp.startTime}–{sp.endTime})</span>
+                      <span className="font-mono">{formatCurrencyByCode(sp.totalPrice, formData.currency)}</span>
+                    </div>
+                  ))}
+                </div>
+                {formData.items.length > 0 && (
+                  <div className="border-t border-border pt-2">
+                    <p className="text-xs font-medium mb-1">Items:</p>
+                    {formData.items.map((item, i) => {
+                        const totalQty = item.dailyQuantities?.reduce((sum: number, dq: any) => sum + (dq.quantity || 0), 0) || 0
+                      return (
+                        <div key={i} className="flex justify-between text-xs py-0.5">
+                          <span>{item.name} ×{totalQty}</span>
+                          <span className="font-mono">{formatCurrencyByCode(item.totalPrice || 0, formData.currency)}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="border-t border-border pt-2 flex justify-between text-sm font-bold">
+                  <span>Total</span>
+                  <span className="font-mono">
+                    {formatCurrencyByCode(
+                      formData.spaces.reduce((s, sp) => s + sp.totalPrice, 0) + formData.items.reduce((s, it) => s + (it.totalPrice || 0), 0),
+                      formData.currency
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => { setIsDialogOpen(false); resetForm() }}>Cancelar</Button>
-              <Button type="submit" disabled={saving || formData.spaces.length === 0}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Crear Cotización</Button>
+              <Button type="submit" disabled={saving || formData.spaces.length === 0}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}{editingQuoteId ? "Guardar Cambios" : "Crear Cotización"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -947,6 +1291,19 @@ export default function QuotesPage() {
               <Label className="text-xs">Cantidad (personas)</Label>
               <Input type="number" min="1" value={menuFormData.quantity} onChange={e => setMenuFormData({ ...menuFormData, quantity: parseInt(e.target.value) || 1 })} />
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label className="text-xs">Menú N°</Label>
+                <Input type="number" min="1" value={menuFormData.menuNumber} onChange={e => setMenuFormData({ ...menuFormData, menuNumber: parseInt(e.target.value) || 1 })} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Tipo</Label>
+                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={menuFormData.guestType} onChange={e => setMenuFormData({ ...menuFormData, guestType: e.target.value as "ADULTO" | "NINO" })}>
+                  <option value="ADULTO">Adultos</option>
+                  <option value="NINO">Niños</option>
+                </select>
+              </div>
+            </div>
             <div className="text-sm text-muted-foreground">
               Precio unitario: {selectedMenuProduct && formatCurrencyByCode(formData.currency === "USD" ? +(selectedMenuProduct.unitPrice / exchangeRate).toFixed(2) : selectedMenuProduct.unitPrice, formData.currency)}
             </div>
@@ -972,10 +1329,16 @@ export default function QuotesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-semibold text-foreground truncate">{selectedQuote.client.name}</h3>
+                  {selectedQuote.eventTitle && (
+                    <p className="text-sm text-primary font-medium mt-0.5">{selectedQuote.eventTitle}</p>
+                  )}
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {new Date(selectedQuote.eventDate).toLocaleDateString("es-GT", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                     {selectedQuote.guestCount ? ` · ${selectedQuote.guestCount} personas` : ""}
                   </p>
+                  {selectedQuote.parkingSpot && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Parqueo: {formatParkingSpots(selectedQuote.parkingSpot)}</p>
+                  )}
                 </div>
                 <span className="vm-status-badge shrink-0" style={{ backgroundColor: quoteStatusColors[selectedQuote.status] || "#9ca3af", color: "#fff" }}>
                   {quoteStatusLabels[selectedQuote.status] ?? selectedQuote.status}
@@ -998,22 +1361,45 @@ export default function QuotesPage() {
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Espacios</p>
                   <div className="space-y-2">
-                    {selectedQuote.spaces.map((sp, i) => (
-                      <div key={sp.id || i} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm font-medium">{sp.locationName}</p>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="w-3 h-3" />
-                              {sp.startTime} – {sp.endTime}
-                              {sp.startTime && <span className="ml-1">({getScheduleFromTime(sp.startTime)?.toLowerCase() || ""})</span>}
+                    {(() => {
+                      const grouped: Array<{ name: string; startTime: string; endTime: string; totalPrice: number; count: number }> = []
+                      let cg: typeof grouped[0] | null = null
+                      
+                      const getGroupKey = (sp: any) => {
+                        const name = sp.locationName?.trim() || sp.locationName || ""
+                        const numMatch = name.match(/(\d+)$/)
+                        const base = numMatch ? name.substring(0, name.length - numMatch[0].length).trim() || "Hab" : name
+                        return { base, timeKey: `${sp.startTime}-${sp.endTime}` }
+                      }
+                      
+                      for (const sp of (selectedQuote.spaces || [])) {
+                        const { base, timeKey } = getGroupKey(sp)
+                        if (cg && cg.name === base && cg.startTime === sp.startTime && cg.endTime === sp.endTime) {
+                          cg.totalPrice += sp.totalPrice || sp.unitPrice
+                          cg.count++
+                        } else {
+                          if (cg) grouped.push(cg)
+                          cg = { name: base, startTime: sp.startTime, endTime: sp.endTime, totalPrice: sp.totalPrice || sp.unitPrice, count: 1 }
+                        }
+                      }
+                      if (cg) grouped.push(cg)
+                      
+                      return grouped.map((g, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">{g.name}{g.count > 1 ? ` (${g.count} hab.)` : ''}</p>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="w-3 h-3" />
+                                {g.startTime} – {g.endTime}
+                              </div>
                             </div>
                           </div>
+                          <span className="text-sm font-mono font-medium">{formatCurrencyByCode(g.totalPrice, selectedQuote.currency)}</span>
                         </div>
-                        <span className="text-sm font-mono font-medium">{formatCurrencyByCode(sp.totalPrice || sp.unitPrice, selectedQuote.currency)}</span>
-                      </div>
-                    ))}
+                      ))
+                    })()}
                   </div>
                 </div>
               )}
@@ -1030,13 +1416,41 @@ export default function QuotesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedQuote.items.map(item => (
-                        <tr key={item.id} className="border-b border-border last:border-0">
-                          <td className="p-2.5 text-xs">{item.name}</td>
-                          <td className="p-2.5 text-center font-mono text-xs">{item.quantity}</td>
-                          <td className="p-2.5 text-right font-mono text-xs">{formatCurrencyByCode(item.totalPrice, selectedQuote.currency)}</td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        const grouped: Record<string, typeof selectedQuote.items> = {}
+                        selectedQuote.items.forEach(item => {
+                          const cat = item.category || "Otros"
+                          if (!grouped[cat]) grouped[cat] = []
+                          grouped[cat].push(item)
+                        })
+                        return Object.entries(grouped).map(([category, items]) => (
+                          <Fragment key={category}>
+                            <tr className="bg-muted/30">
+                              <td colSpan={3} className="p-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{category}</td>
+                            </tr>
+                            {items.map(item => (
+                              <tr key={item.id} className="border-b border-border last:border-0">
+                                <td className="p-2.5 text-xs">
+                                  <div>{item.name}</div>
+                                  {(item.menuNumber || item.guestType) && (
+                                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                                      {item.menuNumber && <span>Menú #{item.menuNumber}</span>}
+                                      {item.menuNumber && item.guestType && <span> · </span>}
+                                      {item.guestType && <span>{item.guestType === "ADULTO" ? "Adulto" : "Niño"}</span>}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-center font-mono text-xs">
+                                  {item.dailyQuantities?.reduce((sum, dq) => sum + dq.quantity, 0) || 0}
+                                </td>
+                                <td className="p-2.5 text-right font-mono text-xs">
+                                  {formatCurrencyByCode((item.dailyQuantities?.reduce((sum, dq) => sum + dq.quantity, 0) || 0) * (item.unitPrice || 0), selectedQuote.currency)}
+                                </td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        ))
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -1051,11 +1465,11 @@ export default function QuotesPage() {
               )}
 
               {/* Payments summary */}
-              {selectedQuote.reservation?.payments && selectedQuote.reservation.payments.length > 0 && (
+              {selectedQuote.payments && selectedQuote.payments.length > 0 && (
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pagos Recibidos</p>
                   <div className="space-y-1.5">
-                    {selectedQuote.reservation.payments.map(p => (
+                    {selectedQuote.payments.map(p => (
                       <div key={p.id} className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20 text-xs">
                         <span className="text-muted-foreground">{new Date(p.createdAt).toLocaleDateString("es-GT")}</span>
                         <span className="font-mono font-medium">{formatCurrencyByCode(p.amount, selectedQuote.currency)}</span>
@@ -1063,11 +1477,11 @@ export default function QuotesPage() {
                     ))}
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-xs font-medium">Pagado:</span>
-                      <span className="text-xs font-mono font-semibold">{formatCurrencyByCode(selectedQuote.reservation.paidAmount, selectedQuote.currency)}</span>
+                      <span className="text-xs font-mono font-semibold">{formatCurrencyByCode(selectedQuote.paidAmount || 0, selectedQuote.currency)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium">Pendiente:</span>
-                      <span className="text-xs font-mono font-semibold">{formatCurrencyByCode(selectedQuote.reservation.pendingAmount, selectedQuote.currency)}</span>
+                      <span className="text-xs font-mono font-semibold">{formatCurrencyByCode(selectedQuote.pendingAmount || 0, selectedQuote.currency)}</span>
                     </div>
                   </div>
                 </div>
@@ -1095,36 +1509,41 @@ export default function QuotesPage() {
                     <Button size="sm" className="gap-1.5" onClick={() => { handleStatusChange(selectedQuote.id, "EN_EJECUCION"); setSelectedQuote(null) }}>
                       ▶ Poner en ejecución
                     </Button>
-                    <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { if (confirm("¿Cancelar?")) { handleStatusChange(selectedQuote.id, "CANCELADO"); setSelectedQuote(null) } }}>
-                      <X className="w-3.5 h-3.5" /> Cancelar
+                    <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { if (confirm("¿Eliminar esta cotización? Esta acción no se puede deshacer")) { handleStatusChange(selectedQuote.id, "CANCELADO"); setSelectedQuote(null) } }}>
+                      <X className="w-3.5 h-3.5" /> Eliminar Cotización
                     </Button>
                   </>
                 )}
                 {selectedQuote.status === "EN_EJECUCION" && (
                   <>
-                    {!selectedQuote.reservation?.eventClosing && (
+                    {!selectedQuote.eventClosing && (
                       <Button size="sm" className="gap-1.5 bg-vm-sienna hover:bg-vm-sienna/90" onClick={openLiquidation}>
                         <Wallet className="w-3.5 h-3.5" /> Liquidar
                       </Button>
                     )}
-                    <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { if (confirm("¿Cancelar?")) { handleStatusChange(selectedQuote.id, "CANCELADO"); setSelectedQuote(null) } }}>
-                      <X className="w-3.5 h-3.5" /> Cancelar
+                    <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { if (confirm("¿Eliminar esta cotización? Esta acción no se puede deshacer")) { handleStatusChange(selectedQuote.id, "CANCELADO"); setSelectedQuote(null) } }}>
+                      <X className="w-3.5 h-3.5" /> Eliminar Cotización
                     </Button>
                   </>
                 )}
                 {selectedQuote.status === "FINALIZADA" && (
                   <>
-                    {!selectedQuote.reservation?.eventClosing && (
+                    {!selectedQuote.eventClosing && (
                       <Button size="sm" className="gap-1.5 bg-vm-sienna hover:bg-vm-sienna/90" onClick={openLiquidation}>
                         <Wallet className="w-3.5 h-3.5" /> Liquidar
                       </Button>
                     )}
-                    {selectedQuote.reservation?.eventClosing && (
+                    {selectedQuote.eventClosing && (
                       <Button size="sm" variant="outline" className="gap-1.5" disabled title="Función temporalmente deshabilitada">
                         <Mail className="w-3.5 h-3.5" /> Enviar a Contabilidad
                       </Button>
                     )}
                   </>
+                )}
+                {selectedQuote.status !== "CANCELADO" && selectedQuote.status !== "FINALIZADA" && (
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openEditQuote(selectedQuote)}>
+                    <Pencil className="w-3.5 h-3.5" /> Editar
+                  </Button>
                 )}
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={() => downloadPDF(selectedQuote)}>
                   <FileText className="w-3.5 h-3.5" /> Descargar PDF
@@ -1258,6 +1677,45 @@ export default function QuotesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Anticipo al Confirmar ─────────────────────────────────────── */}
+      <Dialog open={advancePaymentOpen} onOpenChange={setAdvancePaymentOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">Confirmar Cotización</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Monto del anticipo</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={advancePaymentAmount}
+                onChange={e => setAdvancePaymentAmount(e.target.value)}
+                placeholder={`Total: ${formatCurrencyByCode(advancePaymentTotal, advancePaymentCurrency)}`}
+              />
+              <p className="text-xs text-muted-foreground">
+                Total: {formatCurrencyByCode(advancePaymentTotal, advancePaymentCurrency)}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setAdvancePaymentAmount("0")} className="flex-1">
+                Sin anticipo
+              </Button>
+              <Button variant="outline" onClick={() => setAdvancePaymentAmount(String(advancePaymentTotal))} className="flex-1">
+                Total
+              </Button>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setAdvancePaymentOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmAdvancePayment} className="bg-vm-sage hover:bg-vm-sage/90">
+              Confirmar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

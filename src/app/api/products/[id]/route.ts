@@ -64,6 +64,9 @@ export async function PUT(
       isFree,
       pricePerDay,
       pricePerHour,
+      rentalPrice,
+      color,
+      packageSize,
     } = body
 
     const product = await prisma.product.update({
@@ -81,6 +84,9 @@ export async function PUT(
         isFree: isFree !== undefined ? isFree : undefined,
         pricePerDay: pricePerDay !== undefined && pricePerDay !== "" ? parseFloat(pricePerDay) : null,
         pricePerHour: pricePerHour !== undefined && pricePerHour !== "" ? parseFloat(pricePerHour) : null,
+        rentalPrice: rentalPrice !== undefined ? rentalPrice : undefined,
+        color: color !== undefined ? (color || null) : undefined,
+        packageSize: packageSize !== undefined ? (packageSize !== "" ? parseInt(packageSize) : null) : undefined,
       },
     })
 

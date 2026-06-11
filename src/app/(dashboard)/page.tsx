@@ -1,6 +1,6 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { redirect } from "next/navigation"
+import {getServerSession} from "next-auth"
+import {authOptions} from "@/lib/auth"
+import {redirect} from "next/navigation"
 import DashboardContent from "./dashboard-content"
 import prisma from "@/lib/db"
 
@@ -15,7 +15,7 @@ async function getDashboardData() {
 
   try {
     const [
-      reservationsCount,
+      quotesCount,
       todayEvents,
       upcomingEvents,
       expensesThisMonth,
@@ -24,26 +24,35 @@ async function getDashboardData() {
       damagedFurniture,
       executingEvents,
     ] = await Promise.all([
-      prisma.reservation.count({
+      prisma.quote.count({
         where: {
-          startDate: { gte: startOfMonth, lte: endOfMonth },
+          eventDate: { gte: startOfMonth, lte: endOfMonth },
         },
       }),
-      // Eventos de hoy: reservaciones cuyo rango de fechas incluye hoy, excluyendo canceladas/finalizadas
-      prisma.reservation.count({
+      // Eventos de hoy: cotizaciones confirmadas o en ejecución que ocurren hoy
+      prisma.quote.count({
         where: {
-          status: { notIn: ["FINALIZADO", "CANCELADO"] },
-          startDate: { lte: endOfToday },
-          endDate: { gte: startOfToday },
+          status: { in: ["CONFIRMADA", "EN_EJECUCION"] },
+          OR: [
+            // Eventos de un día: eventDate es hoy y no tiene endDate
+            { eventDate: { gte: startOfToday, lte: endOfToday }, endDate: null },
+            // Eventos multi-día: hoy cae dentro del rango
+            { 
+              AND: [
+                { eventDate: { lte: endOfToday } },
+                { endDate: { gte: startOfToday } },
+              ]
+            },
+          ],
         },
       }),
-      prisma.reservation.findMany({
+      prisma.quote.findMany({
         where: {
-          startDate: { gte: startOfToday, lte: nextWeek },
-          status: { notIn: ["FINALIZADO", "CANCELADO"] },
+          eventDate: { gte: startOfToday, lte: nextWeek },
+          status: { notIn: ["FINALIZADA", "CANCELADO"] },
         },
         take: 10,
-        orderBy: { startDate: "asc" },
+        orderBy: { eventDate: "asc" },
         include: { client: true },
       }),
       prisma.expense.aggregate({
@@ -64,7 +73,7 @@ async function getDashboardData() {
       }),
       prisma.furniture.count({
         where: {
-          status: { in: ["DAÑADO", "DADO_BAJA"] },
+          status: { in: ["DANADO", "DADO_BAJA"] },
         },
       }),
       // Eventos EN_EJECUCION de hoy
@@ -76,18 +85,14 @@ async function getDashboardData() {
         include: {
           client: true,
           spaces: true,
-          reservation: {
-            include: {
-              payments: true,
-            },
-          },
+          payments: true,
         },
         orderBy: { eventDate: "asc" },
       }),
     ])
 
     return {
-      reservationsCount,
+      quotesCount,
       todayEvents,
       upcomingEvents,
       expensesThisMonth: expensesThisMonth._sum.amount || 0,
@@ -99,7 +104,7 @@ async function getDashboardData() {
   } catch (error) {
     console.error("Dashboard error:", error)
     return {
-      reservationsCount: 0,
+      quotesCount: 0,
       todayEvents: 0,
       upcomingEvents: [],
       expensesThisMonth: 0,

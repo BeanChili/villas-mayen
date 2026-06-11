@@ -19,8 +19,9 @@ export async function GET(
       include: {
         client: true,
         spaces: true,
-        items: { include: { product: true, furniture: true } },
-        reservation: { include: { payments: true, eventClosing: { include: { items: { include: { furniture: true } } } } } },
+        items: { include: { product: true, furniture: true, dailyQuantities: true } },
+        payments: { orderBy: { createdAt: "asc" } },
+        eventClosing: { include: { items: { include: { furniture: true } } } },
       },
     })
 
@@ -51,57 +52,89 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { notes, items, spaces, currency, exchangeRate, guestCount, totalAmount } = body
+    const { clientId, eventDate, endDate, notes, items, spaces, currency, exchangeRate, guestCount, totalAmount, eventTitle, parkingSpot } = body
 
-    // Recrear espacios
-    if (spaces) {
-      await prisma.quoteSpace.deleteMany({ where: { quoteId: params.id } })
-    }
+    const quote = await prisma.$transaction(async (tx) => {
+      if (spaces) await tx.quoteSpace.deleteMany({ where: { quoteId: params.id } })
+      if (items) await tx.quoteItem.deleteMany({ where: { quoteId: params.id } })
 
-    // Recrear items
-    if (items) {
-      await prisma.quoteItem.deleteMany({ where: { quoteId: params.id } })
-    }
-
-    const quote = await prisma.quote.update({
-      where: { id: params.id },
-      data: {
+      return tx.quote.update({
+        where: { id: params.id },
+        data: {
+        clientId,
+        eventDate: eventDate ? new Date(eventDate + "T12:00:00") : undefined,
+        endDate: endDate ? new Date(endDate + "T12:00:00") : (eventDate ? new Date(eventDate + "T12:00:00") : undefined),
         notes,
         currency,
         exchangeRate,
         guestCount,
         totalAmount: totalAmount || 0,
+        eventTitle,
+        parkingSpot,
         spaces: spaces ? {
-          create: spaces.map((s: any) => ({
-            locationType: s.locationType,
-            locationId: s.locationId,
-            locationName: s.locationName,
-            startTime: s.startTime,
-            endTime: s.endTime,
-            pricingMode: s.pricingMode || "PER_SPACE",
-            unitPrice: s.unitPrice || 0,
-            totalPrice: s.totalPrice || 0,
-            notes: s.notes,
-          })),
+          create: spaces.flatMap((s: any) => {
+            const from = s.roomFrom ? parseInt(s.roomFrom) : 0
+            const to = s.roomTo ? parseInt(s.roomTo) : 0
+            if (from > 0 && to >= from) {
+              const arr = []
+              for (let n = from; n <= to; n++) {
+                arr.push({
+                  locationType: s.locationType,
+                  locationId: s.locationId,
+                  locationName: `${s.locationName || "Habitación"} ${n}`,
+                  startTime: s.startTime,
+                  endTime: s.endTime,
+                  pricingMode: s.pricingMode || "PER_SPACE",
+                  unitPrice: s.unitPrice || 0,
+                  totalPrice: s.totalPrice || 0,
+                  notes: s.notes,
+                })
+              }
+              return arr
+            }
+            return [{
+              locationType: s.locationType,
+              locationId: s.locationId,
+              locationName: s.locationName,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              pricingMode: s.pricingMode || "PER_SPACE",
+              unitPrice: s.unitPrice || 0,
+              totalPrice: s.totalPrice || 0,
+              notes: s.notes,
+            }]
+          }),
         } : undefined,
         items: items ? {
-          create: items.map((item: any) => ({
-            productId: item.productId || null,
-            name: item.name,
-            category: item.category,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            pricingMode: item.pricingMode || null,
-            scheduledDate: item.scheduledDate ? new Date(item.scheduledDate + "T12:00:00") : null,
-            startTime: item.startTime || null,
-            endTime: item.endTime || null,
-            discountType: item.discountType || null,
-            discountValue: item.discountValue || 0,
-            totalPrice: item.totalPrice || item.quantity * item.unitPrice,
-          })),
+          create: items.map((item: any) => {
+            const dailyQuantities = item.dailyQuantities || []
+            const totalQty = dailyQuantities.reduce((sum: number, dq: any) => sum + (dq.quantity || 0), 0)
+            
+            return {
+              productId: item.productId || null,
+              furnitureId: item.furnitureId || null,
+              name: item.name,
+              category: item.category,
+              unitPrice: item.unitPrice,
+              pricingMode: item.pricingMode || null,
+              discountType: item.discountType || null,
+              discountValue: item.discountValue || 0,
+              adjustmentType: item.adjustmentType || "DISCOUNT",
+              menuNumber: item.menuNumber || null,
+              guestType: item.guestType || null,
+              notes: item.notes || null,
+              dailyQuantities: {
+                create: dailyQuantities.map((dq: any) => ({
+                  date: new Date(dq.date + "T12:00:00"),
+                  quantity: dq.quantity || 0,
+                })),
+              },
+            }
+          }),
         } : undefined,
       },
       include: { items: true, spaces: true },
+    })
     })
 
     return NextResponse.json({ success: true, data: quote })

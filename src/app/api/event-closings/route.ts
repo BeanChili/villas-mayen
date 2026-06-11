@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     const eventClosings = await prisma.eventClosing.findMany({
       include: {
-        reservation: { include: { client: true } },
+        quote: { include: { client: true } },
         items: { include: { furniture: true } },
       },
       orderBy: { closingDate: "desc" },
@@ -39,35 +39,35 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { reservationId, returnStatus, observations, items } = body
+    const { quoteId, returnStatus, observations, items } = body
 
-    if (!reservationId || !returnStatus) {
+    if (!quoteId || !returnStatus) {
       return NextResponse.json({ success: false, error: "Faltan campos requeridos" }, { status: 400 })
     }
 
-    // Validate reservation status
-    const reservation = await prisma.reservation.findUnique({
-      where: { id: reservationId },
+    // Validate quote status
+    const quote = await prisma.quote.findUnique({
+      where: { id: quoteId },
     })
 
-    if (!reservation) {
-      return NextResponse.json({ success: false, error: "Reservación no encontrada" }, { status: 404 })
+    if (!quote) {
+      return NextResponse.json({ success: false, error: "Cotización no encontrada" }, { status: 404 })
     }
 
-    if (reservation.status !== "EN_EJECUCION" && reservation.status !== "FINALIZADO") {
+    if (quote.status !== "EN_EJECUCION" && quote.status !== "FINALIZADA") {
       return NextResponse.json(
-        { success: false, error: "La reservación debe estar en ejecución o finalizada para liquidar" },
+        { success: false, error: "La cotización debe estar en ejecución o finalizada para liquidar" },
         { status: 400 }
       )
     }
 
     // Check if closing already exists
     const existing = await prisma.eventClosing.findUnique({
-      where: { reservationId },
+      where: { quoteId },
     })
 
     if (existing) {
-      return NextResponse.json({ success: false, error: "Ya existe un cierre para esta reservación" }, { status: 409 })
+      return NextResponse.json({ success: false, error: "Ya existe un cierre para esta cotización" }, { status: 409 })
     }
 
     // Calculate damage and loss costs from items
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     const eventClosing = await prisma.$transaction(async (tx) => {
       const closing = await tx.eventClosing.create({
         data: {
-          reservationId,
+          quoteId,
           closingDate: new Date(),
           returnStatus,
           observations: observations || null,
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
             : undefined,
         },
         include: {
-          reservation: { include: { client: true } },
+          quote: { include: { client: true } },
           items: { include: { furniture: true } },
         },
       })

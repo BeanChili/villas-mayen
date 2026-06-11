@@ -1,11 +1,13 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 import { statusLabels, quoteStatusLabels, quoteStatusColors } from "@/types"
 import { formatCurrency, getStatusColor, getStatusLabel, getScheduleFromTime } from "@/lib/utils"
 import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, Check, FileText } from "lucide-react"
@@ -46,10 +48,8 @@ interface Reservation {
   paidAmount: number
   pendingAmount?: number
   observations?: string
-  payments: Payment[]
   spaces?: any[]
-  reservationId?: string // ID de la reservación real (si existe)
-  isQuote?: boolean // true si es una quote mostrada como reservation
+  payments?: Payment[]
 
   // Computed on fetch
   _total?: number
@@ -113,11 +113,13 @@ function slotVisible(res: Reservation, dayKey: string, slotIdx: number): boolean
 
 // ─── status flow ──────────────────────────────────────────────────────────────
 
-const RESERVATION_STATUS_FLOW = [
-  "COTIZADO",
-  "CONFIRMADO",
+const QUOTE_STATUS_FLOW = [
+  "BORRADOR",
+  "ENVIADA",
+  "NO_CONFIRMADA",
+  "CONFIRMADA",
   "EN_EJECUCION",
-  "FINALIZADO",
+  "FINALIZADA",
 ] as const
 
 // ─── componente modal de detalle ─────────────────────────────────────────────
@@ -130,26 +132,29 @@ interface ReservationDetailModalProps {
 function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModalProps) {
   const [paymentAmount, setPaymentAmount] = useState("")
   const [paymentNotes, setPaymentNotes] = useState("")
+  const [paymentType, setPaymentType] = useState("EFECTIVO")
+  const [referenceNumber, setReferenceNumber] = useState("")
   const [savingPayment, setSavingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState("")
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const [changingStatus, setChangingStatus] = useState(false)
 
   const pending = reservation.totalAmount - reservation.paidAmount
-  const currentIdx = RESERVATION_STATUS_FLOW.indexOf(reservation.status as any)
+  const currentIdx = QUOTE_STATUS_FLOW.indexOf(reservation.status as any)
 
   const changeStatus = async (newStatus: string) => {
     if (newStatus === reservation.status) { setStatusDropdownOpen(false); return }
     setChangingStatus(true)
     setStatusDropdownOpen(false)
     try {
-      const res = await fetch(`/api/reservations/${reservation.id}`, {
+      const res = await fetch(`/api/calendar/${reservation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       })
       if (res.ok) {
-        const updated = await res.json()
+        const result = await res.json()
+        const updated = result.data || result
         onUpdate({ ...reservation, status: updated.status })
       }
     } catch (err) {
@@ -172,13 +177,19 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
     setPaymentError("")
     setSavingPayment(true)
     try {
-      const res = await fetch(`/api/reservations/${reservation.reservationId}/payments`, {
+      const res = await fetch(`/api/calendar/${reservation.id}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, notes: paymentNotes || undefined }),
+        body: JSON.stringify({ 
+          amount, 
+          notes: paymentNotes || undefined,
+          paymentType,
+          referenceNumber: referenceNumber || undefined,
+        }),
       })
       if (res.ok) {
-        const updated = await res.json()
+        const result = await res.json()
+        const updated = result.data || result
         onUpdate({
           ...reservation,
           paidAmount: updated.paidAmount,
@@ -188,6 +199,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         })
         setPaymentAmount("")
         setPaymentNotes("")
+        setReferenceNumber("")
       } else {
         const err = await res.json()
         setPaymentError(err.error || "Error al registrar el pago")
@@ -201,9 +213,9 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
   }
 
   const cancelReservation = async () => {
-    if (!confirm("¿Está seguro de cancelar esta reservación?")) return
+    if (!confirm("¿Está seguro de eliminar esta cotización?")) return
     try {
-      const res = await fetch(`/api/reservations/${reservation.id}`, {
+      const res = await fetch(`/api/calendar/${reservation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "CANCELADO" }),
@@ -222,7 +234,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
     : 0
 
   const isCancelled = reservation.status === "CANCELADO"
-  const isFinalised = reservation.status === "FINALIZADO"
+  const isFinalised = reservation.status === "FINALIZADA"
 
   return (
     <div className="space-y-6">
@@ -237,7 +249,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
           </h3>
           <div className="flex items-center gap-2 mt-1 text-muted-foreground">
             <MapPin className="w-3.5 h-3.5" />
-            <span className="text-sm">{reservation.locationName}</span>
+              <span className="text-base">{reservation.locationName}</span>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
@@ -312,7 +324,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
                 <div className="px-3 py-2 border-b border-border">
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cambiar estado</p>
                 </div>
-                {RESERVATION_STATUS_FLOW.map((s, idx) => {
+                {QUOTE_STATUS_FLOW.map((s, idx) => {
                   const isCurrent = s === reservation.status
                   const isPast = idx < currentIdx
                   return (
@@ -342,7 +354,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
                     className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/8 transition-colors duration-100"
                   >
                     <span className="w-2 h-2 rounded-full shrink-0 bg-destructive" />
-                    <span>Cancelar reservación</span>
+                    <span>Eliminar Cotización</span>
                   </button>
                 </div>
               </div>
@@ -412,6 +424,16 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
                       <span className="font-mono font-semibold text-vm-sage">{formatCurrency(p.amount)}</span>
                       <span className="text-[10px] text-muted-foreground">{p.createdByName}</span>
                     </div>
+                    {(p as any).paymentType && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                          {(p as any).paymentType}
+                        </Badge>
+                        {(p as any).referenceNumber && (
+                          <span className="text-[10px] text-muted-foreground">Ref: {(p as any).referenceNumber}</span>
+                        )}
+                      </div>
+                    )}
                     {p.notes && (
                       <p className="text-xs text-muted-foreground/80 truncate mt-0.5">{p.notes}</p>
                     )}
@@ -428,10 +450,10 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         {/* Register payment form */}
         {!isCancelled && pending > 0 && (
           <div className="flex flex-col gap-2 pt-4 border-t border-border">
-            {!reservation.reservationId ? (
+            {reservation.status !== "CONFIRMADA" && reservation.status !== "EN_EJECUCION" ? (
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
-                <p className="font-medium">Cotización sin reservación</p>
-                <p className="text-xs mt-1">Esta cotización está en estado <strong>{getStatusLabel(reservation.status)}</strong>. Debe confirmarse primero para crear la reservación y poder registrar pagos.</p>
+                <p className="font-medium">Cotización no confirmada</p>
+                <p className="text-xs mt-1">Esta cotización está en estado <strong>{getStatusLabel(reservation.status)}</strong>. Debe confirmarse primero para poder registrar pagos.</p>
               </div>
             ) : (
               <>
@@ -453,6 +475,26 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
                   >
                     {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : "Registrar"}
                   </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={paymentType} onValueChange={setPaymentType}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EFECTIVO">Efectivo</SelectItem>
+                      <SelectItem value="DEPOSITO">Depósito</SelectItem>
+                      <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
+                      <SelectItem value="CHEQUE">Cheque</SelectItem>
+                      <SelectItem value="TARJETA">Tarjeta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="N° Referencia (opcional)"
+                    value={referenceNumber}
+                    onChange={e => setReferenceNumber(e.target.value)}
+                    className="flex-1"
+                  />
                 </div>
                 <Input
                   placeholder="Notas (opcional)"
@@ -485,8 +527,14 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
 
 // ─── componente principal ─────────────────────────────────────────────────────
 
-export default function ReservationsPage() {
+export const dynamic = "force-dynamic"
+
+function ReservationsContent() {
   const { data: session } = useSession()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const dateFilter = searchParams.get('date')
+  
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -554,21 +602,23 @@ export default function ReservationsPage() {
           endSchedule,
           schedules: JSON.stringify([startSchedule]),
           status: q.status, // quote status (BORRADOR, ENVIADA, etc.)
-          paymentStatus: q.reservation?.paymentStatus || "SIN_PAGO",
+          paymentStatus: q.paymentStatus || "SIN_PAGO",
           totalAmount: q.totalAmount || 0,
-          paidAmount: q.reservation?.paidAmount || 0,
-          pendingAmount: (q.totalAmount || 0) - (q.reservation?.paidAmount || 0),
+          paidAmount: q.paidAmount || 0,
+          pendingAmount: (q.totalAmount || 0) - (q.paidAmount || 0),
           observations: q.notes || "",
-          payments: q.reservation?.payments || [],
+          payments: q.payments || [],
           spaces,
-          reservationId: q.reservationId,
-          isQuote: true,
         } as Reservation
       })
 
       const locRes = await fetch("/api/locations")
       const locData = await locRes.json()
       setLocations(Array.isArray(locData) ? locData : (locData.data || []))
+
+      const cliRes = await fetch("/api/clients")
+      const cliData = await cliRes.json()
+      setClients(Array.isArray(cliData) ? cliData : (cliData.data || []))
 
       setReservations(mappedQuotes)
     } catch (err) {
@@ -629,7 +679,7 @@ export default function ReservationsPage() {
     setFormError("")
 
     try {
-      const response = await fetch("/api/reservations", {
+      const response = await fetch("/api/calendar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -734,7 +784,7 @@ export default function ReservationsPage() {
             {isToday ? (
               <span className="vm-day-today">{dayNum}</span>
             ) : (
-              <span className="text-xs font-medium text-muted-foreground">{dayNum}</span>
+              <span className="text-sm font-medium text-muted-foreground">{dayNum}</span>
             )}
           </div>
         )}
@@ -776,14 +826,14 @@ export default function ReservationsPage() {
                     right,
                     backgroundColor: quoteStatusColors[res.status] || getStatusColor(res.status),
                   }}
-                  onClick={(e) => { e.stopPropagation(); setSelectedReservation(res) }}
+                  onClick={(e) => { e.stopPropagation(); router.push(`/quotes?id=${res.id}`) }}
                   title={`${res.locationName} — ${res.client.name}`}
                 >
                   {showLabel && (
                     <span
                       className="truncate leading-none pointer-events-none select-none"
                       style={{
-                        fontSize: granularity === "week" ? "11px" : "9px",
+                        fontSize: granularity === "week" ? "12px" : "10px",
                         fontWeight: 600,
                         color: "rgba(255,255,255,0.95)",
                         paddingLeft: "6px",
@@ -802,7 +852,7 @@ export default function ReservationsPage() {
           {/* Overflow badge */}
           {overflow > 0 && (
             <div className="flex items-center mt-0.5">
-              <span className="text-[9px] font-semibold text-muted-foreground bg-muted rounded px-1 py-0.5 leading-none">
+              <span className="text-[10px] font-semibold text-muted-foreground bg-muted rounded px-1 py-0.5 leading-none">
                 +{overflow} más
               </span>
             </div>
@@ -819,7 +869,7 @@ export default function ReservationsPage() {
     return (
       <div className="grid grid-cols-7 border border-border rounded-xl overflow-hidden">
         {dayNames.map(d => (
-          <div key={d} className="text-[11px] font-semibold text-muted-foreground text-center py-2.5 bg-muted/50 border-b border-border uppercase tracking-wider">
+          <div key={d} className="text-xs font-semibold text-muted-foreground text-center py-2.5 bg-muted/50 border-b border-border uppercase tracking-wider">
             {d}
           </div>
         ))}
@@ -860,12 +910,12 @@ export default function ReservationsPage() {
           const isT = getDateKey(d) === today
           return (
             <div key={i} className={cn("py-2.5 text-center bg-muted/50 border-b border-border", i > 0 && "border-l border-border")}>
-              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{dayNames[d.getDay()]}</div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{dayNames[d.getDay()]}</div>
               <div className="flex items-center justify-center mt-1">
                 {isT ? (
-                  <span className="vm-day-today text-sm w-7 h-7">{d.getDate()}</span>
+                  <span className="vm-day-today text-base w-7 h-7">{d.getDate()}</span>
                 ) : (
-                  <span className="text-sm font-medium text-foreground">{d.getDate()}</span>
+                  <span className="text-base font-medium text-foreground">{d.getDate()}</span>
                 )}
               </div>
             </div>
@@ -1041,7 +1091,7 @@ export default function ReservationsPage() {
             <Button
               variant="outline"
               className="mt-4 gap-2"
-              onClick={() => (window.location.href = `/quotes`)}
+              onClick={() => (window.location.href = `/quotes?new=true`)}
             >
               <Plus className="w-4 h-4" /> Cotizar
             </Button>
@@ -1060,7 +1110,7 @@ export default function ReservationsPage() {
                 return (
                   <div
                     key={hour}
-                    className="text-[11px] text-muted-foreground text-right pr-2 relative"
+                    className="text-xs text-muted-foreground text-right pr-2 relative"
                     style={{
                       height: HOUR_HEIGHT,
                       lineHeight: "14px",
@@ -1135,7 +1185,7 @@ export default function ReservationsPage() {
                       borderLeftColor: statusColor,
                       boxShadow: `0 1px 3px ${statusColor}30`,
                     }}
-                    onClick={() => setSelectedReservation(ev.res)}
+                    onClick={() => router.push(`/quotes?id=${ev.res.id}`)}
                     title={`${clientName} — ${statusLabel}\n${ev.res.locationName}\n${formatCurrency(
                       ev.res.totalAmount
                     )}`}
@@ -1147,7 +1197,7 @@ export default function ReservationsPage() {
                           className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-2 ring-white"
                           style={{ backgroundColor: statusColor }}
                         />
-                        <span className="text-[11px] font-bold text-foreground truncate leading-tight">
+                        <span className="text-xs font-bold text-foreground truncate leading-tight">
                           {shortName}
                         </span>
                       </div>
@@ -1155,7 +1205,7 @@ export default function ReservationsPage() {
                       {/* Info secundaria: horario + ubicación */}
                       {height > 36 && (
                         <div className="mt-1 space-y-0.5">
-                          <div className="flex items-center gap-1 text-[9px] text-muted-foreground truncate">
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
                             <Clock className="w-2.5 h-2.5 flex-shrink-0" />
                             <span className="truncate">
                               {SCHEDULE_LABELS[ev.res.startSchedule as Schedule]} —{" "}
@@ -1163,13 +1213,13 @@ export default function ReservationsPage() {
                             </span>
                           </div>
                           {height > 52 && (
-                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground truncate">
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
                               <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
                               <span className="truncate">{ev.res.locationName}</span>
                             </div>
                           )}
                           {height > 72 && (
-                            <div className="text-[9px] font-mono font-semibold text-foreground/90 truncate">
+                            <div className="text-[10px] font-mono font-semibold text-foreground/90 truncate">
                               {formatCurrency(ev.res.totalAmount)}
                             </div>
                           )}
@@ -1191,7 +1241,15 @@ export default function ReservationsPage() {
   const renderListView = () => {
     // Filter reservations to the current period
     let filtered: Reservation[]
-    if (granularity === "day") {
+    
+    // Si hay un filtro de fecha específico (desde dashboard), usarlo
+    if (dateFilter) {
+      filtered = reservations.filter(r => {
+        const s = getDateKey(parseDate(r.startDate))
+        const e = getDateKey(parseDate(r.endDate))
+        return s <= dateFilter && e >= dateFilter
+      })
+    } else if (granularity === "day") {
       const dayKey = getDateKey(currentDate)
       filtered = reservations.filter(r => {
         const s = getDateKey(parseDate(r.startDate))
@@ -1225,16 +1283,16 @@ export default function ReservationsPage() {
 
     return (
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-base">
           <thead>
             <tr className="border-b border-border">
-              <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cliente</th>
-              <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Ubicación</th>
-              <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Fechas</th>
-              <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Estado</th>
-              <th className="text-right p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
-              <th className="text-right p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Pagado</th>
-              <th className="text-right p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Pendiente</th>
+              <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</th>
+              <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ubicación</th>
+              <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fechas</th>
+              <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estado</th>
+              <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
+              <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pagado</th>
+              <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pendiente</th>
             </tr>
           </thead>
           <tbody>
@@ -1242,7 +1300,7 @@ export default function ReservationsPage() {
               <tr>
                 <td colSpan={7} className="py-20 text-center">
                   <CalendarDays className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">No hay reservaciones para este período</p>
+                  <p className="text-sm text-muted-foreground">No hay eventos para este período</p>
                 </td>
               </tr>
             ) : (
@@ -1252,11 +1310,11 @@ export default function ReservationsPage() {
                   <tr
                     key={res.id}
                     className="vm-table-row"
-                  onClick={(e) => { e.stopPropagation(); setSelectedReservation(res) }}
+                  onClick={(e) => { e.stopPropagation(); router.push(`/quotes?id=${res.id}`) }}
                   >
                     <td className="p-3 font-medium text-foreground max-w-[160px] truncate" title={res.client.name}>{res.client.name}</td>
                     <td className="p-3 text-muted-foreground">{res.locationName}</td>
-                    <td className="p-3 text-muted-foreground text-xs">
+                    <td className="p-3 text-muted-foreground text-sm">
                       {parseDate(res.startDate).toLocaleDateString("es-GT", { day: "numeric", month: "short" })}
                       {" — "}
                       {parseDate(res.endDate).toLocaleDateString("es-GT", { day: "numeric", month: "short" })}
@@ -1309,10 +1367,10 @@ export default function ReservationsPage() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">
-            Reservaciones
+            Calendario de Eventos
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Administra las reservaciones del centro de eventos
+            Administra los eventos y cotizaciones
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -1322,7 +1380,7 @@ export default function ReservationsPage() {
               <span className="hidden sm:inline">Ver Menú</span>
             </Button>
           </a>
-          <a href="/quotes">
+          <a href="/quotes?new=true">
             <Button className="gap-2">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Cotizar</span>
@@ -1656,11 +1714,11 @@ export default function ReservationsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog: Detalle de Reservación ───────────────────────────────────── */}
+      {/* ── Dialog: Detalle de Cotización ───────────────────────────────────── */}
       <Dialog open={!!selectedReservation} onOpenChange={() => setSelectedReservation(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">Reservación</DialogTitle>
+            <DialogTitle className="font-display text-xl">Cotización</DialogTitle>
           </DialogHeader>
           {selectedReservation && (
             <ReservationDetailModal
@@ -1674,5 +1732,17 @@ export default function ReservationsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function ReservationsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    }>
+      <ReservationsContent />
+    </Suspense>
   )
 }

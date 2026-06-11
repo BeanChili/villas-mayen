@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { furnitureCategoryLabels, furnitureStatusLabels } from "@/types"
-import { Plus, Search, Package, Loader2, Edit, Trash2, AlertTriangle } from "lucide-react"
+import { Plus, Search, Package, Loader2, Edit, Trash2, AlertTriangle, Download } from "lucide-react"
 
 interface Furniture {
   id: string
@@ -20,14 +20,23 @@ interface Furniture {
   purchaseValue: number
   depreciationRate: number
   currentValue: number
+  rentalPrice: number
+  color?: string
   status: string
   location?: string
   purchaseDate?: string
   observations?: string
 }
 
+interface Category {
+  id: string
+  name: string
+  type: string
+}
+
 export default function InventoryPage() {
   const [furniture, setFurniture] = useState<Furniture[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
@@ -42,6 +51,8 @@ export default function InventoryPage() {
     category: "SILLAS",
     purchaseValue: 0,
     depreciationRate: 10,
+    rentalPrice: 0,
+    color: "",
     status: "BUENO",
     location: "",
     purchaseDate: "",
@@ -50,19 +61,34 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchFurniture()
+    fetchCategories()
   }, [])
 
   async function fetchFurniture() {
     try {
       const response = await fetch("/api/furniture")
       const data = await response.json()
-      setFurniture(data)
+      setFurniture(Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching furniture:", error)
     } finally {
       setLoading(false)
     }
   }
+
+  async function fetchCategories() {
+    try {
+      const response = await fetch("/api/categories?type=FURNITURE")
+      const result = await response.json()
+      setCategories(result.data || [])
+    } catch (error) {
+      console.error("Error fetching categories:", error)
+    }
+  }
+
+  const categoryOptions = categories.length > 0
+    ? categories.map((c) => ({ value: c.name, label: furnitureCategoryLabels[c.name] || c.name }))
+    : Object.entries(furnitureCategoryLabels).map(([key, label]) => ({ value: key, label }))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,6 +127,8 @@ export default function InventoryPage() {
       category: item.category,
       purchaseValue: item.purchaseValue,
       depreciationRate: item.depreciationRate,
+      rentalPrice: item.rentalPrice || 0,
+      color: item.color || "",
       status: item.status,
       location: item.location || "",
       purchaseDate: item.purchaseDate ? item.purchaseDate.split('T')[0] : "",
@@ -128,6 +156,8 @@ export default function InventoryPage() {
       category: "SILLAS",
       purchaseValue: 0,
       depreciationRate: 10,
+      rentalPrice: 0,
+      color: "",
       status: "BUENO",
       location: "",
       purchaseDate: "",
@@ -180,8 +210,8 @@ export default function InventoryPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las categorías</SelectItem>
-            {Object.entries(furnitureCategoryLabels).map(([key, label]) => (
-              <SelectItem key={key} value={key}>{label}</SelectItem>
+            {categoryOptions.map((c) => (
+              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -251,7 +281,19 @@ export default function InventoryPage() {
       {/* Furniture List */}
       <Card>
         <CardHeader>
-          <CardTitle>Inventario de Mobiliario</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Inventario de Mobiliario</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => {
+              const headers = "No.Inventario,Nombre,Categoría,Color,Valor Compra,Valor Actual,Estado,Precio Alquiler,Ubicación\n"
+              const rows = furniture.map(f => `"${f.inventoryNumber}","${f.name}","${f.category}","${(f as any).color || ''}",${f.purchaseValue},${f.currentValue},"${f.status}",${(f as any).rentalPrice || 0},"${f.location || ''}"`).join("\n")
+              const csv = headers + rows
+              const blob = new Blob([csv], { type: "text/csv" })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement("a")
+              a.href = url; a.download = "inventario_villas_mayen.csv"; a.click()
+              URL.revokeObjectURL(url)
+            }}><Download className="w-4 h-4 mr-1" /> Exportar CSV</Button>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -266,8 +308,10 @@ export default function InventoryPage() {
                     <th className="text-left p-3 font-medium">No. Inventario</th>
                     <th className="text-left p-3 font-medium">Nombre</th>
                     <th className="text-left p-3 font-medium">Categoría</th>
+                    <th className="text-left p-3 font-medium">Color</th>
                     <th className="text-left p-3 font-medium">Valor Compra</th>
                     <th className="text-left p-3 font-medium">Valor Actual</th>
+                    <th className="text-left p-3 font-medium">Alquiler</th>
                     <th className="text-left p-3 font-medium">Estado</th>
                     <th className="text-left p-3 font-medium">Ubicación</th>
                     <th className="text-left p-3 font-medium">Acciones</th>
@@ -283,8 +327,10 @@ export default function InventoryPage() {
                           {furnitureCategoryLabels[item.category as keyof typeof furnitureCategoryLabels] || item.category}
                         </Badge>
                       </td>
+                      <td className="p-3 text-gray-600">{item.color || "-"}</td>
                       <td className="p-3">{formatCurrency(item.purchaseValue)}</td>
                       <td className="p-3 font-medium">{formatCurrency(item.currentValue)}</td>
+                      <td className="p-3 font-mono">{formatCurrency(item.rentalPrice || 0)}</td>
                       <td className="p-3">
                         <Badge 
                           variant={item.status === "BUENO" ? "default" : item.status === "DANADO" ? "destructive" : "secondary"}
@@ -354,8 +400,8 @@ export default function InventoryPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(furnitureCategoryLabels).map(([key, label]) => (
-                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    {categoryOptions.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -395,6 +441,26 @@ export default function InventoryPage() {
                   type="number"
                   value={formData.depreciationRate}
                   onChange={(e) => setFormData({ ...formData, depreciationRate: parseFloat(e.target.value) })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Precio de Alquiler</Label>
+                <Input
+                  type="number"
+                  value={formData.rentalPrice}
+                  onChange={(e) => setFormData({ ...formData, rentalPrice: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Color</Label>
+                <Input
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  placeholder="ej: Azul, Rojo"
                 />
               </div>
             </div>

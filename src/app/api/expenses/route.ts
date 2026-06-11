@@ -32,14 +32,14 @@ export async function GET(request: NextRequest) {
     const expenses = await prisma.expense.findMany({
       where,
       include: {
-        relatedEvent: {
+        quote: {
           include: { client: true },
         },
       },
       orderBy: { date: "desc" },
     })
 
-    return NextResponse.json(expenses)
+    return NextResponse.json({ success: true, data: expenses })
   } catch (error) {
     console.error("Error fetching expenses:", error)
     return NextResponse.json(
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { date, category, description, amount, receiptPhoto, relatedEventId } = body
+    const { date, category, description, amount, receiptPhoto, quoteId } = body
 
     if (!date || !category || !description || amount === undefined) {
       return NextResponse.json(
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
         description,
         amount,
         receiptPhoto,
-        relatedEventId,
+        quoteId,
       },
     })
 

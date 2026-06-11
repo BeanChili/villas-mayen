@@ -23,23 +23,20 @@ interface Quote {
   items: { 
     id: string;
     name: string; 
-    totalPrice: number; 
-    quantity: number;
+    unitPrice: number;
+    dailyQuantities?: Array<{ quantity: number }>
     productId?: string;
     furnitureId?: string; 
     furniture?: { id: string; name: string } 
   }[]
-  reservation?: {
-    id: string
-    paidAmount: number
-    pendingAmount: number
-    payments: { amount: number; currency: string; createdAt: string }[]
-  }
+  paidAmount?: number
+  pendingAmount?: number
+  payments?: { amount: number; currency: string; createdAt: string }[]
 }
 
 interface EventClosing {
   id: string
-  reservationId: string
+  quoteId: string
   closingDate: string
   returnStatus: string
   observations: string
@@ -103,8 +100,8 @@ export default function EventsPage() {
     if (!selectedQuote) return
 
     // Validate that quote has a linked reservation
-    if (!selectedQuote.reservation?.id) {
-      alert("Esta cotización no tiene una reservación vinculada. Debe confirmarse primero.")
+    if (selectedQuote.status !== "CONFIRMADA" && selectedQuote.status !== "EN_EJECUCION") {
+      alert("Esta cotización debe estar confirmada o en ejecución para liquidar.")
       return
     }
 
@@ -122,7 +119,7 @@ export default function EventsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          reservationId: selectedQuote.reservation.id,
+          quoteId: selectedQuote.id,
           returnStatus: formData.returnStatus,
           observations: formData.observations,
           damageCost,
@@ -170,7 +167,7 @@ export default function EventsPage() {
       ?.map(item => ({
         itemId: item.id,
         name: item.name,
-        quantity: item.quantity,
+        quantity: item.dailyQuantities?.reduce((sum, dq) => sum + dq.quantity, 0) || 0,
         returnStatus: "RETORNADO_OK" as string,
         damageDescription: "",
         repairCost: 0,
@@ -304,17 +301,17 @@ export default function EventsPage() {
                       <span className="font-mono font-medium">
                         {formatCurrencyByCode(quote.totalAmount, quote.currency)}
                       </span>
-                      {quote.reservation && (
+                      {(quote.paidAmount || 0) > 0 && (
                         <span className="text-xs text-muted-foreground">
-                          (Pagado: {formatCurrencyByCode(quote.reservation.paidAmount, quote.currency)})
+                          (Pagado: {formatCurrencyByCode(quote.paidAmount || 0, quote.currency)})
                         </span>
                       )}
                     </div>
                   </div>
                   <Button 
                     onClick={() => openLiquidationDialog(quote)}
-                    disabled={!quote.reservation}
-                    title={!quote.reservation ? "La cotización debe estar confirmada para liquidar" : ""}
+                    disabled={quote.status !== "CONFIRMADA" && quote.status !== "EN_EJECUCION"}
+                    title={quote.status !== "CONFIRMADA" && quote.status !== "EN_EJECUCION" ? "La cotización debe estar confirmada para liquidar" : ""}
                   >
                     Liquidar
                   </Button>
@@ -402,21 +399,21 @@ export default function EventsPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">Pagado</p>
                     <p className="font-mono font-semibold text-green-600">
-                      {formatCurrencyByCode(selectedQuote.reservation?.paidAmount || 0, selectedQuote.currency)}
+                      {formatCurrencyByCode(selectedQuote.paidAmount || 0, selectedQuote.currency)}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Pendiente</p>
                     <p className="font-mono font-semibold text-orange-600">
-                      {formatCurrencyByCode(selectedQuote.reservation?.pendingAmount || selectedQuote.totalAmount, selectedQuote.currency)}
+                      {formatCurrencyByCode(selectedQuote.pendingAmount || selectedQuote.totalAmount, selectedQuote.currency)}
                     </p>
                   </div>
                 </div>
-                {selectedQuote.reservation && selectedQuote.reservation.payments.length > 0 && (
+                {selectedQuote.payments && selectedQuote.payments.length > 0 && (
                   <div className="pt-2 border-t border-border mt-2">
                     <p className="text-xs text-muted-foreground mb-1">Pagos registrados:</p>
                     <div className="space-y-1">
-                      {selectedQuote.reservation.payments.map((p, i) => (
+                      {selectedQuote.payments && selectedQuote.payments.map((p: any, i: number) => (
                         <div key={i} className="flex justify-between text-xs">
                           <span>{new Date(p.createdAt).toLocaleDateString("es-GT")}</span>
                           <span className="font-mono">{formatCurrencyByCode(p.amount, p.currency)}</span>

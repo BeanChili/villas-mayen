@@ -12,24 +12,23 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
 
-    // Auto-expirar cotizaciones ENVIADA que ya vencieron (CP-04)
+    // Auto-transición: CONFIRMADA con fecha pasada → EN_EJECUCION
     await prisma.quote.updateMany({
       where: {
-        status: "ENVIADA",
-        expiresAt: { lt: now },
+        status: "CONFIRMADA",
+        eventDate: { lte: now },
       },
-      data: {
-        status: "NO_CONFIRMADA",
-      },
+      data: { status: "EN_EJECUCION", executedAt: now, executionDate: now },
     })
 
     const quotes = await prisma.quote.findMany({
       include: { 
         client: true, 
         spaces: true,
-        items: { include: { furniture: true } },
-        reservation: { include: { payments: true } },
+        items: { include: { furniture: true, dailyQuantities: true } },
+        payments: { orderBy: { createdAt: "asc" } },
       },
       orderBy: { createdAt: "desc" },
     })
@@ -54,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { clientId, eventDate, endDate, currency, exchangeRate, guestCount, spaces, notes, items } = body
+    const { clientId, eventDate, endDate, currency, exchangeRate, guestCount, spaces, notes, items, eventTitle, parkingSpot } = body
 
     if (!clientId || !eventDate || !spaces || !Array.isArray(spaces) || spaces.length === 0) {
       return NextResponse.json({ success: false, error: "Faltan campos requeridos o spaces vacío" }, { status: 400 })
@@ -70,13 +69,17 @@ export async function POST(request: NextRequest) {
       const price = s.pricingMode === "PER_PERSON" && guestCount
         ? guestCount * (s.unitPrice || 0)
         : (s.unitPrice || 0)
-      return sum + price
+      const count = (s.roomFrom && s.roomTo && s.roomTo >= s.roomFrom) 
+        ? (parseInt(s.roomTo) - parseInt(s.roomFrom) + 1) 
+        : 1
+      return sum + (price * count)
     }, 0)
 
     const itemsTotal = (items || []).reduce((sum: number, i: any) => {
-      const itemTotal = i.quantity * i.unitPrice
+      const totalQty = (i.dailyQuantities || []).reduce((s: number, dq: any) => s + (dq.quantity || 0), 0)
+      const itemTotal = totalQty * (i.unitPrice || 0)
       const discount = i.discountType === "PERCENT"
-        ? itemTotal * (i.discountValue / 100)
+        ? itemTotal * ((i.discountValue || 0) / 100)
         : (i.discountValue || 0)
       return sum + (itemTotal - discount)
     }, 0)
@@ -95,43 +98,79 @@ export async function POST(request: NextRequest) {
         subtotal,
         totalAmount: subtotal,
         notes,
+        eventTitle: eventTitle || null,
+        parkingSpot: parkingSpot || null,
         spaces: {
-          create: spaces.map((s: any) => ({
-            locationType: s.locationType,
-            locationId: s.locationId,
-            locationName: s.locationName,
-            startTime: s.startTime,
-            endTime: s.endTime,
-            pricingMode: s.pricingMode || "PER_SPACE",
-            unitPrice: Math.round((s.unitPrice || 0) * 100) / 100,
-            totalPrice: Math.round((s.pricingMode === "PER_PERSON" && guestCount
-              ? guestCount * (s.unitPrice || 0)
-              : (s.unitPrice || 0)) * 100) / 100,
-            notes: s.notes,
-          })),
+          create: spaces.flatMap((s: any) => {
+            const from = s.roomFrom ? parseInt(s.roomFrom) : 0
+            const to = s.roomTo ? parseInt(s.roomTo) : 0
+            if (from > 0 && to >= from) {
+              const roomSpaces = []
+              for (let n = from; n <= to; n++) {
+                const baseName = s.locationName || "Habitación"
+                const roomName = `${baseName} ${n}`
+                roomSpaces.push({
+                  locationType: s.locationType,
+                  locationId: s.locationId,
+                  locationName: roomName,
+                  startTime: s.startTime,
+                  endTime: s.endTime,
+                  pricingMode: s.pricingMode || "PER_SPACE",
+                  unitPrice: Math.round((s.unitPrice || 0) * 100) / 100,
+                  totalPrice: Math.round((s.pricingMode === "PER_PERSON" && guestCount
+                    ? guestCount * (s.unitPrice || 0)
+                    : (s.unitPrice || 0)) * 100) / 100,
+                })
+              }
+              return roomSpaces
+            }
+            return [{
+              locationType: s.locationType,
+              locationId: s.locationId,
+              locationName: s.locationName,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              pricingMode: s.pricingMode || "PER_SPACE",
+              unitPrice: Math.round((s.unitPrice || 0) * 100) / 100,
+              totalPrice: Math.round((s.pricingMode === "PER_PERSON" && guestCount
+                ? guestCount * (s.unitPrice || 0)
+                : (s.unitPrice || 0)) * 100) / 100,
+            }]
+          }),
         },
         items: items?.length ? {
           create: items.map((item: any) => {
-            const t = item.quantity * item.unitPrice
+            // Calcular total sumando todos los días
+            const dailyQuantities = item.dailyQuantities || []
+            const totalQty = dailyQuantities.reduce((sum: number, dq: any) => sum + (dq.quantity || 0), 0)
+            const t = totalQty * item.unitPrice
             const d = item.discountType === "PERCENT" ? t * ((item.discountValue || 0) / 100) : (item.discountValue || 0)
+            
             return {
               productId: item.productId || null,
+              furnitureId: item.furnitureId || null,
               name: item.name,
               category: item.category,
-              quantity: item.quantity,
               unitPrice: Math.round(item.unitPrice * 100) / 100,
               pricingMode: item.pricingMode || null,
-              scheduledDate: item.scheduledDate ? new Date(item.scheduledDate + "T12:00:00") : null,
-              startTime: item.startTime || null,
-              endTime: item.endTime || null,
               discountType: item.discountType || null,
               discountValue: Math.round((item.discountValue || 0) * 100) / 100,
-              totalPrice: Math.round((t - d) * 100) / 100,
+              adjustmentType: item.adjustmentType || "DISCOUNT",
+              menuNumber: item.menuNumber || null,
+              guestType: item.guestType || null,
+              notes: item.notes || null,
+              // Crear entradas diarias
+              dailyQuantities: {
+                create: dailyQuantities.map((dq: any) => ({
+                  date: new Date(dq.date + "T12:00:00"),
+                  quantity: dq.quantity || 0,
+                })),
+              },
             }
           }),
         } : undefined,
       },
-      include: { client: true, spaces: true, items: true },
+      include: { client: true, spaces: true, items: { include: { dailyQuantities: true } } },
     })
 
     return NextResponse.json({ success: true, data: quote }, { status: 201 })

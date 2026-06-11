@@ -20,12 +20,14 @@ import {
   MapPin,
   ShoppingBag,
   Home,
+  Tag,
+  Monitor,
 } from "lucide-react"
 import { useState } from "react"
 
 const mainNavigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Reservaciones", href: "/reservations", icon: Calendar },
+  { name: "Calendario", href: "/calendar", icon: Calendar },
   { name: "Clientes", href: "/clients", icon: Users },
   { name: "Cotizaciones", href: "/quotes", icon: FileText },
   { name: "Inventario", href: "/inventory", icon: Package },
@@ -40,6 +42,8 @@ const catalogNavigation = [
 const bottomNavigation = [
   { name: "Gastos", href: "/expenses", icon: Wallet },
   { name: "Eventos", href: "/events", icon: Archive },
+  { name: "Cierres", href: "/reports/closings", icon: BookOpen },
+  { name: "Pantalla TV", href: "/screen", icon: Monitor },
   { name: "Configuración", href: "/settings", icon: Settings },
 ]
 

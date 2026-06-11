@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(furnitureWithValues)
+    return NextResponse.json({ success: true, data: furnitureWithValues })
   } catch (error) {
     console.error("Error fetching furniture:", error)
     return NextResponse.json(
@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
       purchaseDate,
       location,
       observations,
+      color,
     } = body
 
     if (!inventoryNumber || !name || !category || purchaseValue === undefined) {
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
         currentValue,
         rentalPrice: rentalPrice || 0,
         status: status || "BUENO",
+        color,
         photo,
         purchaseDate: purchaseDate ? new Date(purchaseDate + "T12:00:00") : null,
         location,

@@ -27,12 +27,8 @@ export async function sendClosingEmail(quoteId: string, to: string): Promise<{ s
       where: { id: quoteId },
       include: {
         client: true,
-        reservation: {
-          include: {
-            payments: true,
-            eventClosing: { include: { items: { include: { furniture: true } } } },
-          },
-        },
+        payments: true,
+        eventClosing: { include: { items: { include: { furniture: true } } } },
       },
     })
 
@@ -40,7 +36,7 @@ export async function sendClosingEmail(quoteId: string, to: string): Promise<{ s
       return { success: false, error: "Cotización no encontrada" }
     }
 
-    const closing = quote.reservation?.eventClosing
+    const closing = quote.eventClosing
 
     const emailData: ClosingEmailData = {
       quoteId: quote.id,
@@ -48,8 +44,8 @@ export async function sendClosingEmail(quoteId: string, to: string): Promise<{ s
       eventDate: quote.eventDate.toISOString(),
       totalAmount: quote.totalAmount,
       currency: quote.currency,
-      paidAmount: quote.reservation?.paidAmount || 0,
-      pendingAmount: quote.reservation?.pendingAmount || 0,
+      paidAmount: quote.paidAmount || 0,
+      pendingAmount: quote.pendingAmount || 0,
       damageCost: closing?.damageCost || 0,
       lossCost: closing?.lossCost || 0,
       closingObservations: closing?.observations || undefined,

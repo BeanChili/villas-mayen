@@ -56,11 +56,11 @@ export function parseSchedule(schedulesJson: string): string[] {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    // ReservationStatus
-    COTIZADO:     '#6B7280', // gray
-    CONFIRMADO:   '#3B82F6', // blue
+    // Quote + Payment statuses
+    COTIZADO:     '#6B7280', // gray (legacy)
+    CONFIRMADO:   '#3B82F6', // blue (legacy)
     EN_EJECUCION: '#8B5CF6', // purple
-    FINALIZADO:   '#10B981', // emerald
+    FINALIZADO:   '#10B981', // emerald (legacy)
     CANCELADO:    '#EF4444', // red
     // PaymentStatus
     SIN_PAGO: '#6B7280', // gray
@@ -72,11 +72,11 @@ export function getStatusColor(status: string): string {
 
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    // ReservationStatus
-    COTIZADO:     'Cotizado',
-    CONFIRMADO:   'Confirmado',
+    // Quote + Payment statuses
+    COTIZADO:     'Cotizado',     // legacy
+    CONFIRMADO:   'Confirmado',   // legacy
     EN_EJECUCION: 'En Ejecución',
-    FINALIZADO:   'Finalizado',
+    FINALIZADO:   'Finalizado',   // legacy
     CANCELADO:    'Cancelado',
     // PaymentStatus
     SIN_PAGO: 'Sin Pago',
@@ -141,8 +141,11 @@ export function getQuoteStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     BORRADOR: 'Borrador',
     ENVIADA: 'Enviada',
-    APROBADA: 'Aprobada',
-    RECHAZADA: 'Rechazada',
+    NO_CONFIRMADA: 'No Confirmada',
+    CONFIRMADA: 'Confirmada',
+    EN_EJECUCION: 'En Ejecución',
+    CANCELADO: 'Cancelado',
+    FINALIZADA: 'Finalizada',
   }
   return labels[status] || status
 }
@@ -194,6 +197,20 @@ export function formatCurrencyUSD(amount: number): string {
 export function formatCurrencyByCode(amount: number, currency: string): string {
   if (currency === 'USD') return formatCurrencyUSD(amount)
   return formatCurrency(amount)
+}
+
+const PARKING_OPTION_LABELS: Record<string, string> = {
+  Predio: "Predio",
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [String(i + 1), `Grupo ${i + 1}`])),
+}
+
+export function formatParkingSpots(value?: string): string {
+  return (value || "")
+    .split(",")
+    .map(v => v.trim())
+    .filter(Boolean)
+    .map(v => PARKING_OPTION_LABELS[v] || v)
+    .join(", ")
 }
 
 export function calculateExpiryDate(sentDate: Date, validityDays: number = 15): Date {

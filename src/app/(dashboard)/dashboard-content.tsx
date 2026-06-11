@@ -4,26 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Users, Package, Wallet, Clock, AlertTriangle, Play, MapPin, DollarSign } from "lucide-react"
 import Link from "next/link"
-import { formatCurrency, formatDate, getStatusColor, parseSchedule } from "@/lib/utils"
-
-// Short schedule labels for display
-const SCHEDULE_SHORT: Record<string, string> = {
-  MANANA: "Mañana",
-  TARDE: "Tarde",
-  NOCHE: "Noche",
-}
-
-function formatSchedules(raw: string): string {
-  try {
-    const arr = parseSchedule(raw)
-    return arr.map(s => SCHEDULE_SHORT[s] ?? s).join(" · ")
-  } catch {
-    return raw
-  }
-}
+import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils"
+import { quoteStatusColors } from "@/types"
 
 interface DashboardData {
-  reservationsCount: number
+  quotesCount: number
   todayEvents: number
   upcomingEvents: any[]
   expensesThisMonth: number
@@ -40,14 +25,16 @@ interface User {
 }
 
 export default function DashboardContent({ data, user }: { data: DashboardData; user: User }) {
+  const today = new Date().toISOString().split('T')[0]
+  
   const stats = [
     {
-      title: "Reservaciones del Mes",
-      value: data.reservationsCount,
+      title: "Cotizaciones del Mes",
+      value: data.quotesCount,
       icon: Calendar,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
-      href: "/reservations",
+      href: "/quotes",
     },
     {
       title: "Eventos Hoy",
@@ -55,7 +42,7 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
       icon: Clock,
       color: "text-red-600",
       bgColor: "bg-red-50",
-      href: "/reservations",
+      href: `/calendar?date=${today}`,
     },
     {
       title: "Clientes Nuevos",
@@ -183,16 +170,16 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
                         <DollarSign className="w-4 h-4" />
                         <span className="font-mono">
                           Total: {formatCurrency(event.totalAmount)} | 
-                          Pagado: {formatCurrency(event.reservation?.paidAmount || 0)}
+                          Pagado: {formatCurrency(event.paidAmount || 0)}
                         </span>
                       </div>
                     </div>
 
-                    {event.reservation && event.reservation.payments.length > 0 && (
+                    {event.payments && event.payments.length > 0 && (
                       <div className="pt-2 border-t border-gray-100">
                         <p className="text-xs text-gray-500 mb-1">Pagos:</p>
                         <div className="space-y-1">
-                          {event.reservation.payments.map((p: any, i: number) => (
+                          {event.payments.map((p: any, i: number) => (
                             <div key={i} className="flex justify-between text-xs">
                               <span>{new Date(p.createdAt).toLocaleDateString("es-GT")}</span>
                               <span className="font-mono">{formatCurrency(p.amount)}</span>
@@ -229,18 +216,26 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
                   <div className="flex items-center gap-4">
                     <div
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: getStatusColor(event.status) }}
+                      style={{ backgroundColor: quoteStatusColors[event.status] || getStatusColor(event.status) }}
                     />
                     <div>
                       <p className="font-medium">{event.client.name}</p>
-                      <p className="text-sm text-gray-500">{event.locationName}</p>
+                      <p className="text-sm text-gray-500">
+                        {formatDate(event.eventDate)}
+                        {event.endDate && event.eventDate !== event.endDate && ` → ${formatDate(event.endDate)}`}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {formatDate(event.startDate)}
-                    </p>
-                    <p className="text-xs text-gray-500">{formatSchedules(event.schedules)}</p>
+                    <span
+                      className="text-xs px-2 py-1 rounded-full text-white"
+                      style={{ backgroundColor: quoteStatusColors[event.status] || getStatusColor(event.status) }}
+                    >
+                      {event.status}
+                    </span>
+                    {event.guestCount ? (
+                      <p className="text-xs text-gray-500 mt-1">{event.guestCount} invitados</p>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -251,7 +246,7 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Link href="/reservations">
+        <Link href="/calendar">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
               <Calendar className="w-8 h-8 mx-auto mb-2 text-primary" />

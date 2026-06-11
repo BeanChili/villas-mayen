@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { roleLabels } from "@/types"
-import { Plus, Search, Users, Loader2, Edit, Trash2, Shield, DollarSign, TrendingUp } from "lucide-react"
+import { Plus, Search, Users, Loader2, Edit, Trash2, Shield, DollarSign, TrendingUp, Tag } from "lucide-react"
 
 interface User {
   id: string
@@ -201,6 +202,12 @@ export default function SettingsPage() {
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Configuración</h1>
           <p className="text-gray-500">Administra usuarios y roles del sistema</p>
         </div>
+        <Link href="/settings/categories">
+          <Button variant="outline">
+            <Tag className="w-4 h-4 mr-2" />
+            Categorías
+          </Button>
+        </Link>
         <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
           <Plus className="w-4 h-4 mr-2" />
           Nuevo Usuario

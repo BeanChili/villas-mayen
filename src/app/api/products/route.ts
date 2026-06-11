@@ -69,6 +69,9 @@ export async function POST(request: NextRequest) {
       isFree,
       pricePerDay,
       pricePerHour,
+      rentalPrice,
+      color,
+      packageSize,
     } = body
 
     if (!name || !category || unitPrice === undefined) {
@@ -92,6 +95,9 @@ export async function POST(request: NextRequest) {
         isFree: isFree ?? false,
         pricePerDay: pricePerDay !== undefined && pricePerDay !== "" ? parseFloat(pricePerDay) : null,
         pricePerHour: pricePerHour !== undefined && pricePerHour !== "" ? parseFloat(pricePerHour) : null,
+        rentalPrice: rentalPrice || 0,
+        color: color || null,
+        packageSize: packageSize !== undefined && packageSize !== "" ? parseInt(packageSize) : null,
       },
     })
 

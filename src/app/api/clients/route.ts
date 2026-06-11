@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       orderBy: { name: "asc" },
       include: {
         _count: {
-          select: { reservations: true, quotes: true },
+          select: { quotes: true },
         },
       },
     })

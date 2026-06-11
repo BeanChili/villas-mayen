@@ -25,6 +25,15 @@ interface Product {
   isFree: boolean
   pricePerDay?: number
   pricePerHour?: number
+  rentalPrice?: number
+  color?: string
+  packageSize?: number
+}
+
+interface Category {
+  id: string
+  name: string
+  type: string
 }
 
 const PRODUCT_CATEGORIES = [
@@ -56,6 +65,7 @@ const UNIT_MEASURES = [
 
 export default function ProductsCatalogPage() {
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
@@ -74,11 +84,32 @@ export default function ProductsCatalogPage() {
     isFree: false,
     pricePerDay: "",
     pricePerHour: "",
+    rentalPrice: "",
+    color: "",
+    packageSize: "",
   })
 
   useEffect(() => {
     fetchProducts()
   }, [categoryFilter])
+
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
+  async function fetchCategories() {
+    try {
+      const response = await fetch("/api/categories?type=PRODUCT")
+      const result = await response.json()
+      setCategories(result.data || [])
+    } catch (error) {
+      console.error("Error fetching categories:", error)
+    }
+  }
+
+  const categoryOptions = categories.length > 0
+    ? categories.map((c) => ({ value: c.name, label: productCategoryLabels[c.name] || c.name }))
+    : PRODUCT_CATEGORIES
 
   async function fetchProducts() {
     try {
@@ -111,6 +142,9 @@ export default function ProductsCatalogPage() {
         isFree: formData.isFree,
         pricePerDay: formData.pricePerDay ? parseFloat(formData.pricePerDay) : undefined,
         pricePerHour: formData.pricePerHour ? parseFloat(formData.pricePerHour) : undefined,
+        rentalPrice: formData.rentalPrice ? parseFloat(formData.rentalPrice) : 0,
+        color: formData.color || undefined,
+        packageSize: formData.packageSize ? parseInt(formData.packageSize) : undefined,
       }
 
       const response = await fetch(url, {
@@ -145,6 +179,9 @@ export default function ProductsCatalogPage() {
       isFree: product.isFree,
       pricePerDay: product.pricePerDay?.toString() || "",
       pricePerHour: product.pricePerHour?.toString() || "",
+      rentalPrice: product.rentalPrice?.toString() || "",
+      color: product.color || "",
+      packageSize: product.packageSize?.toString() || "",
     })
     setIsEditing(true)
     setIsDialogOpen(true)
@@ -177,6 +214,9 @@ export default function ProductsCatalogPage() {
       isFree: false,
       pricePerDay: "",
       pricePerHour: "",
+      rentalPrice: "",
+      color: "",
+      packageSize: "",
     })
     setSelectedProduct(null)
     setIsEditing(false)
@@ -228,7 +268,7 @@ export default function ProductsCatalogPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las categorías</SelectItem>
-            {PRODUCT_CATEGORIES.map((c) => (
+            {categoryOptions.map((c) => (
               <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
             ))}
           </SelectContent>
@@ -306,6 +346,7 @@ export default function ProductsCatalogPage() {
                     <th className="text-left p-3 font-medium">Categoría</th>
                     <th className="text-left p-3 font-medium">Tipo Menú</th>
                     <th className="text-left p-3 font-medium">Precio</th>
+                    <th className="text-left p-3 font-medium">Alquiler</th>
                     <th className="text-left p-3 font-medium">Stock</th>
                     <th className="text-left p-3 font-medium">Estado</th>
                     <th className="text-left p-3 font-medium">Acciones</th>
@@ -314,7 +355,10 @@ export default function ProductsCatalogPage() {
                 <tbody>
                   {filteredProducts.map((product) => (
                     <tr key={product.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3 font-medium">{product.name}</td>
+                      <td className="p-3 font-medium">
+                        {product.name}
+                        {product.color && <span className="ml-2 text-xs text-gray-500 font-normal">({product.color})</span>}
+                      </td>
                       <td className="p-3">
                         <Badge variant="secondary">
                           {productCategoryLabels[product.category as keyof typeof productCategoryLabels] || product.category}
@@ -328,8 +372,10 @@ export default function ProductsCatalogPage() {
                           formatCurrency(product.unitPrice || 0)
                         )}
                       </td>
+                      <td className="p-3 font-mono">{formatCurrency(product.rentalPrice || 0)}</td>
                       <td className="p-3 text-gray-600">
                         {product.quantity} {product.unitMeasure?.toLowerCase()}
+                        {product.packageSize ? <span className="ml-1 text-xs text-gray-400">(x{product.packageSize})</span> : null}
                       </td>
                       <td className="p-3">
                         <Badge
@@ -390,7 +436,7 @@ export default function ProductsCatalogPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {PRODUCT_CATEGORIES.map((c) => (
+                    {categoryOptions.map((c) => (
                       <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -459,6 +505,27 @@ export default function ProductsCatalogPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label>Color (opcional)</Label>
+                <Input
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  placeholder="ej: Azul, Rojo"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Unidades por Paquete (opcional)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.packageSize}
+                  onChange={(e) => setFormData({ ...formData, packageSize: e.target.value })}
+                  placeholder="ej: 50 (Tazas x50)"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Precio por Día (opcional)</Label>
                 <Input
                   type="number"
@@ -478,6 +545,18 @@ export default function ProductsCatalogPage() {
                   onChange={(e) => setFormData({ ...formData, pricePerHour: e.target.value })}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Precio de Alquiler (para cotizaciones)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={formData.rentalPrice}
+                onChange={(e) => setFormData({ ...formData, rentalPrice: e.target.value })}
+                placeholder="Precio cuando se alquila en una cotización"
+              />
             </div>
 
             <div className="flex items-center gap-4">

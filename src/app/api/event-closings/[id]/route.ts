@@ -17,7 +17,7 @@ export async function GET(
     const eventClosing = await prisma.eventClosing.findUnique({
       where: { id: params.id },
       include: {
-        reservation: { include: { client: true, payments: true } },
+        quote: { include: { client: true, payments: true } },
         items: { include: { furniture: true } },
       },
     })
@@ -93,7 +93,7 @@ export async function PUT(
             : undefined,
         },
         include: {
-          reservation: { include: { client: true } },
+          quote: { include: { client: true } },
           items: { include: { furniture: true } },
         },
       })

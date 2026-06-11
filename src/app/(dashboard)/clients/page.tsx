@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,7 +24,7 @@ interface Client {
   rfc?: string
   observations?: string
   registrationDate: string
-  _count?: { reservations: number; quotes: number }
+  _count?: { quotes: number }
 }
 
 export default function ClientsPage() {
@@ -248,7 +249,9 @@ export default function ClientsPage() {
                 <tbody>
                   {filteredClients.map(client => (
                     <tr key={client.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3 font-medium">{client.name}</td>
+                      <td className="p-3 font-medium">
+                        <Link href={`/clients/${client.id}`} className="text-primary hover:underline">{client.name}</Link>
+                      </td>
                       <td className="p-3">
                         <Badge variant="secondary">
                           {clientTypeLabels[client.clientType as keyof typeof clientTypeLabels] || client.clientType}

@@ -17,16 +17,12 @@ export async function GET(
     const client = await prisma.client.findUnique({
       where: { id: params.id },
       include: {
-        reservations: {
-          orderBy: { startDate: "desc" },
-          take: 10,
-        },
         quotes: {
-          orderBy: { createdAt: "desc" },
+          orderBy: { eventDate: "desc" },
           take: 10,
         },
         _count: {
-          select: { reservations: true, quotes: true },
+          select: { quotes: true },
         },
       },
     })

@@ -67,15 +67,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Ya existe un cierre para esta fecha" }, { status: 409 })
     }
 
-    // Get reservations for that date
-    const reservations = await prisma.reservation.findMany({
+    // Get quotes for that date
+    const quotes = await prisma.quote.findMany({
       where: {
         OR: [
-          { startDate: { gte: startOfDay, lte: endOfDay } },
+          { eventDate: { gte: startOfDay, lte: endOfDay } },
           { endDate: { gte: startOfDay, lte: endOfDay } },
           {
             AND: [
-              { startDate: { lte: startOfDay } },
+              { eventDate: { lte: startOfDay } },
               { endDate: { gte: endOfDay } },
             ],
           },
@@ -84,10 +84,10 @@ export async function POST(request: NextRequest) {
       include: { payments: true },
     })
 
-    const totalEvents = reservations.length
-    const completedEvents = reservations.filter((r) => r.status === "FINALIZADO").length
-    const totalCollected = reservations.reduce((sum, r) => sum + (r.paidAmount || 0), 0)
-    const pendingAmount = reservations.reduce((sum, r) => sum + (r.pendingAmount || 0), 0)
+    const totalEvents = quotes.length
+    const completedEvents = quotes.filter((q) => q.status === "FINALIZADA").length
+    const totalCollected = quotes.reduce((sum, q) => sum + (q.paidAmount || 0), 0)
+    const pendingAmount = quotes.reduce((sum, q) => sum + (q.pendingAmount || 0), 0)
 
     const closing = await prisma.dailyClosing.create({
       data: {

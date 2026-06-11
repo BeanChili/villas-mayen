@@ -32,13 +32,11 @@ export type Role = 'ADMIN' | 'RECEPCIONISTA' | 'FINANZAS' | 'ALMACEN' | 'ENCARGA
 
 export type ClientType = 'PARTICULAR' | 'EMPRESA' | 'IGLESIA' | 'INSTITUCION'
 export type ClientCategory = 'BUENO' | 'REGULAR' | 'DELICADO' | 'EN_OBSERVACION'
-export type ReservationType = 'EVENTO' | 'HABITACION'
 
 export type LocationType = 'FREE_AREA' | 'DINING_ROOM' | 'HALL' | 'ROOM' | 'GARDEN' | 'TERRACE'
 export type Schedule = 'MANANA' | 'TARDE' | 'NOCHE'
 
 export type PaymentStatus = 'SIN_PAGO' | 'PARCIAL' | 'PAGADO'
-export type ReservationStatus = 'COTIZADO' | 'CONFIRMADO' | 'EN_EJECUCION' | 'FINALIZADO' | 'CANCELADO'
 export type QuoteStatus = 'BORRADOR' | 'ENVIADA' | 'NO_CONFIRMADA' | 'CONFIRMADA' | 'EN_EJECUCION' | 'CANCELADO' | 'FINALIZADA'
 
 export type Currency = 'GTQ' | 'USD'
@@ -80,20 +78,6 @@ export interface PaginatedResponse<T> {
 }
 
 // Form types
-export interface ReservationFormData {
-  clientId: string
-  reservationType: ReservationType
-  locationType: LocationType
-  locationId: string
-  startDate: Date
-  endDate: Date
-  startSchedule: Schedule   // Horario del día de inicio (MANANA | TARDE | NOCHE)
-  endSchedule: Schedule     // Horario del día de fin   (MANANA | TARDE | NOCHE)
-  schedules: Schedule[]     // Array derivado de startSchedule..endSchedule (legacy)
-  totalAmount: number
-  observations?: string
-}
-
 export interface ClientFormData {
   name: string
   clientType: ClientType
@@ -112,6 +96,7 @@ export interface QuoteFormData {
   guestCount?: number
   spaces: QuoteSpaceFormData[]
   notes?: string
+  parkingSpot?: string
   items: QuoteItemFormData[]
 }
 
@@ -131,14 +116,14 @@ export interface QuoteItemFormData {
   furnitureId?: string
   name: string
   category: ProductCategory
-  quantity: number
   unitPrice: number
   pricingMode?: PricingMode
-  scheduledDate?: Date
-  startTime?: string
-  endTime?: string
+  menuNumber?: number
+  guestType?: 'ADULTO' | 'NINO'
+  dailyQuantities?: Array<{ date: string; quantity: number }>
   discountType?: DiscountType
   discountValue?: number
+  adjustmentType?: 'DISCOUNT' | 'SURCHARGE'
   notes?: string
 }
 
@@ -149,6 +134,7 @@ export interface FurnitureFormData {
   purchaseValue: number
   depreciationRate: number
   status: FurnitureStatus
+  color?: string
   photo?: string
   purchaseDate?: Date
   location?: string
@@ -168,6 +154,7 @@ export interface ProductFormData {
   isFree: boolean
   pricePerDay?: number
   pricePerHour?: number
+  rentalPrice?: number
 }
 
 export interface ExpenseFormData {
@@ -176,7 +163,7 @@ export interface ExpenseFormData {
   description: string
   amount: number
   receiptPhoto?: string
-  relatedEventId?: string
+  quoteId?: string
 }
 
 export interface UserFormData {
@@ -190,7 +177,7 @@ export interface UserFormData {
 }
 
 export interface EventClosingFormData {
-  reservationId: string
+  quoteId: string
   closingDate: Date
   returnStatus: ReturnStatus
   observations?: string
@@ -218,7 +205,7 @@ export interface Permission {
 
 export const rolePermissions: Record<Role, Permission[]> = {
   ADMIN: [
-    { module: 'reservations', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: true },
+    { module: '  calendar', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: true },
     { module: 'clients', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: true },
     { module: 'quotes', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: true },
     { module: 'inventory', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: true },
@@ -229,7 +216,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     { module: 'rooms', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: true },
   ],
   RECEPCIONISTA: [
-    { module: 'reservations', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
+    { module: '  calendar', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
     { module: 'clients', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
     { module: 'quotes', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
     { module: 'inventory', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
@@ -240,7 +227,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     { module: 'rooms', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
   ],
   FINANZAS: [
-    { module: 'reservations', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
+    { module: '  calendar', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'clients', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'quotes', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'inventory', canCreate: false, canRead: false, canUpdate: false, canDelete: false, canApprove: false },
@@ -251,7 +238,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     { module: 'rooms', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
   ],
   ALMACEN: [
-    { module: 'reservations', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
+    { module: '  calendar', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'clients', canCreate: false, canRead: false, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'quotes', canCreate: false, canRead: false, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'inventory', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
@@ -262,7 +249,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     { module: 'rooms', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
   ],
   ENCARGADO_EVENTO: [
-    { module: 'reservations', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
+    { module: '  calendar', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'clients', canCreate: false, canRead: false, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'quotes', canCreate: false, canRead: false, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'inventory', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
@@ -273,7 +260,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     { module: 'rooms', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
   ],
   USUARIO_SISTEMA: [
-    { module: 'reservations', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
+    { module: '  calendar', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
     { module: 'clients', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'quotes', canCreate: false, canRead: false, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'inventory', canCreate: false, canRead: false, canUpdate: false, canDelete: false, canApprove: false },
@@ -284,7 +271,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     { module: 'rooms', canCreate: true, canRead: true, canUpdate: true, canDelete: true, canApprove: false },
   ],
   VISUAL: [
-    { module: 'reservations', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
+    { module: '  calendar', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'clients', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'quotes', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
     { module: 'inventory', canCreate: false, canRead: true, canUpdate: false, canDelete: false, canApprove: false },
@@ -383,11 +370,18 @@ export const productCategoryLabels: Record<string, string> = {
   COMIDA_MENU: 'Comida/Menú',
   ADORNOS_DECORACION: 'Adornos/Decoración',
   SERVICIOS_ADICIONALES: 'Servicios Adicionales',
+  PLATOS: 'Platos',
+  CUBIERTOS: 'Cubiertos',
+  PICHELES: 'Picheles',
+  VASOS: 'Vasos',
+  COPAS: 'Copas',
 }
 
 export const furnitureCategoryLabels: Record<string, string> = {
   SILLAS: 'Sillas',
   MESAS: 'Mesas',
+  SILLAS_NINOS: 'Sillas para Niños',
+  MESAS_NINOS: 'Mesas para Niños',
   MANTELES: 'Manteles',
   VAJILLA: 'Vajilla',
   CRISTALERIA: 'Cristalería',
