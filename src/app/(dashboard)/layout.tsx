@@ -31,6 +31,7 @@ const mainNavigation = [
   { name: "Clientes", href: "/clients", icon: Users },
   { name: "Cotizaciones", href: "/quotes", icon: FileText },
   { name: "Inventario", href: "/inventory", icon: Package },
+  { name: "Categorías", href: "/settings/categories", icon: Tag },
 ]
 
 const catalogNavigation = [

@@ -1,19 +1,56 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState, memo } from "react"
 import { quoteStatusColors, quoteStatusLabels } from "@/types"
 import { formatParkingSpots } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { Maximize, Minimize } from "lucide-react"
+
+const Clock = memo(function Clock() {
+  const [now, setNow] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setNow(new Date())
+    const clock = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(clock)
+  }, [])
+
+  return (
+    <div className="text-right">
+      <div className="text-4xl font-mono font-bold tabular-nums">
+        {now ? now.toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
+      </div>
+      <div className="text-sm text-vm-stone capitalize">
+        {now ? now.toLocaleDateString("es-GT", { weekday: "long", day: "numeric", month: "long" }) : " "}
+      </div>
+    </div>
+  )
+})
 
 export default function ScreenPage() {
   const [events, setEvents] = useState<any[]>([])
-  const [now, setNow] = useState(new Date())
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchData()
     const interval = setInterval(fetchData, 300000) // 5 min
-    const clock = setInterval(() => setNow(new Date()), 1000)
-    return () => { clearInterval(interval); clearInterval(clock) }
+    return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", onChange)
+    return () => document.removeEventListener("fullscreenchange", onChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().catch(() => {})
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+  }
 
   async function fetchData() {
     try {
@@ -36,6 +73,7 @@ export default function ScreenPage() {
     }
   }
 
+  const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
   const day2 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0)
   const day3 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 0, 0, 0)
@@ -47,8 +85,14 @@ export default function ScreenPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-vm-charcoal via-vm-green-dark to-vm-charcoal text-vm-white overflow-hidden">
-      <div className="flex items-center justify-between gap-6 px-8 py-5 bg-vm-charcoal/60 border-b-4 border-vm-amber backdrop-blur">
+    <div
+      ref={containerRef}
+      className={cn(
+        "bg-gradient-to-br from-vm-charcoal via-vm-green-dark to-vm-charcoal text-vm-white overflow-hidden flex flex-col",
+        isFullscreen ? "h-screen w-screen" : "min-h-screen"
+      )}
+    >
+      <div className="flex items-center justify-between gap-6 px-8 py-5 bg-vm-charcoal/60 border-b-4 border-vm-amber">
         <div className="flex items-center gap-4">
           <img src="/logo.png" alt="Casa Villas Mayen" className="h-14 w-14 rounded-lg object-contain bg-vm-white p-1" />
           <div>
@@ -56,17 +100,19 @@ export default function ScreenPage() {
             <p className="text-sm text-vm-amber font-medium uppercase tracking-widest">Próximos eventos</p>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-4xl font-mono font-bold tabular-nums">
-            {now.toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}
-          </div>
-          <div className="text-sm text-vm-stone capitalize">
-            {now.toLocaleDateString("es-GT", { weekday: "long", day: "numeric", month: "long" })}
-          </div>
+        <div className="flex items-center gap-4">
+          <Clock />
+          <button
+            onClick={toggleFullscreen}
+            className="p-3 rounded-lg bg-vm-charcoal/60 border border-vm-sage/30 text-vm-white hover:bg-vm-sage/30 transition-colors"
+            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          >
+            {isFullscreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 p-4 h-[calc(100vh-110px)]">
+      <div className={cn("grid grid-cols-3 gap-4 p-4", isFullscreen ? "flex-1 min-h-0" : "h-[calc(100vh-110px)]")}>
         {days.map((day, idx) => {
           const dayStart = day.date
           const dayEnd = new Date(day.date.getFullYear(), day.date.getMonth(), day.date.getDate(), 23, 59, 59)
@@ -77,7 +123,7 @@ export default function ScreenPage() {
           })
           const isToday = idx === 0
           return (
-            <div key={day.label} className="bg-vm-charcoal/40 rounded-xl overflow-hidden flex flex-col border border-vm-sage/30 backdrop-blur">
+            <div key={day.label} className="bg-vm-charcoal/40 rounded-xl overflow-hidden flex flex-col border border-vm-sage/30">
               <div className={`p-4 text-xl font-bold text-center ${isToday ? "bg-vm-amber text-vm-charcoal" : "bg-vm-sage text-vm-white"}`}>
                 {day.label}
                 <span className={`block text-sm font-normal capitalize ${isToday ? "text-vm-charcoal/70" : "text-vm-white/70"}`}>
