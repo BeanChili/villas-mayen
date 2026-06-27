@@ -178,6 +178,7 @@ model QuoteSpace {
   unitPrice    Float    @default(0)
   totalPrice   Float    @default(0)
   adjustmentType String? @default("DISCOUNT") // DISCOUNT, SURCHARGE
+  discountValue Float   @default(0)
 
   notes        String?
 

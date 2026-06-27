@@ -91,6 +91,44 @@ async function getDashboardData() {
       }),
     ])
 
+    // ── Datos para gráficos ──
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+    const [statusGroups, revenueQuotes, salonGroups] = await Promise.all([
+      prisma.quote.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.quote.findMany({
+        where: { eventDate: { gte: sixMonthsAgo }, status: { notIn: ["CANCELADO", "BORRADOR"] } },
+        select: { eventDate: true, totalAmount: true, paidAmount: true },
+      }),
+      prisma.quoteSpace.groupBy({
+        by: ["locationName"],
+        _count: { _all: true },
+        orderBy: { _count: { locationName: "desc" } },
+        take: 6,
+      }),
+    ])
+
+    // Ingresos (facturado vs cobrado) por mes — últimos 6 meses
+    const months: { key: string; label: string; facturado: number; cobrado: number }[] = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      months.push({
+        key: `${d.getFullYear()}-${d.getMonth()}`,
+        label: d.toLocaleDateString("es-GT", { month: "short" }),
+        facturado: 0,
+        cobrado: 0,
+      })
+    }
+    for (const q of revenueQuotes) {
+      const d = new Date(q.eventDate)
+      const m = months.find(x => x.key === `${d.getFullYear()}-${d.getMonth()}`)
+      if (m) { m.facturado += q.totalAmount; m.cobrado += q.paidAmount }
+    }
+
+    const statusBreakdown = statusGroups.map(g => ({ status: g.status, count: g._count._all }))
+    const topSalones = salonGroups
+      .filter(g => g.locationName)
+      .map(g => ({ name: g.locationName, count: g._count._all }))
+
     return {
       quotesCount,
       todayEvents,
@@ -100,6 +138,9 @@ async function getDashboardData() {
       furnitureInUse,
       damagedFurniture,
       executingEvents,
+      monthlyRevenue: months,
+      statusBreakdown,
+      topSalones,
     }
   } catch (error) {
     console.error("Dashboard error:", error)
@@ -112,6 +153,9 @@ async function getDashboardData() {
       furnitureInUse: 0,
       damagedFurniture: 0,
       executingEvents: [],
+      monthlyRevenue: [],
+      statusBreakdown: [],
+      topSalones: [],
     }
   }
 }

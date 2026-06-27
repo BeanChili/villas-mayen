@@ -379,7 +379,7 @@ export default function ClientsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>RFC</Label>
+              <Label>NIT</Label>
               <Input
                 value={formData.rfc}
                 onChange={(e) => setFormData({ ...formData, rfc: e.target.value })}

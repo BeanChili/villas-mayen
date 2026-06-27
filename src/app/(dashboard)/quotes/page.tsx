@@ -29,7 +29,7 @@ interface QuoteSpace {
   locationType: string; locationId: string; locationName: string
   startTime: string; endTime: string
   pricingMode: string; unitPrice: number; totalPrice: number
-  adjustmentType?: string; notes?: string
+  adjustmentType?: string; discountValue?: number; notes?: string
   roomFrom?: number; roomTo?: number
 }
 interface QuoteItemDay {
@@ -54,7 +54,7 @@ interface EventClosing {
   damageCost: number; lossCost: number; items: EventClosingItem[]
 }
 interface Quote {
-  id: string; clientId: string; client: { name: string }
+  id: string; clientId: string; client: { name: string; address?: string; rfc?: string; email?: string; phone?: string }
   eventDate: string; endDate?: string; currency: string; guestCount?: number
   status: string; totalAmount: number; notes?: string; eventTitle?: string
   parkingSpot?: string; confirmationDate?: string; executionDate?: string; completionDate?: string
@@ -80,7 +80,7 @@ const LOCATION_OPTIONS = [
 
 const PARKING_OPTIONS = [
   { value: "Predio", label: "Predio" },
-  ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `Grupo ${i + 1}` })),
+  ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `Parqueo ${i + 1}` })),
 ]
 
 function parseParkingSpots(value?: string): string[] {
@@ -121,7 +121,7 @@ function QuotesContent() {
   const [exchangeRate, setExchangeRate] = useState(7.85)
   const [conflictWarning, setConflictWarning] = useState<string | null>(null)
 
-  // Liquidation state
+  // Estado de liquidación
   const [liquidationOpen, setLiquidationOpen] = useState(false)
   const [liquidationFurniture, setLiquidationFurniture] = useState<FurnitureItem[]>([])
   const [liquidationItems, setLiquidationItems] = useState<Array<{
@@ -138,16 +138,19 @@ function QuotesContent() {
   const [savingLiquidation, setSavingLiquidation] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
 
-  // Advance payment modal
+  // Modal de anticipo
   const [advancePaymentOpen, setAdvancePaymentOpen] = useState(false)
   const [advancePaymentAmount, setAdvancePaymentAmount] = useState("")
   const [advancePaymentQuoteId, setAdvancePaymentQuoteId] = useState("")
   const [advancePaymentTotal, setAdvancePaymentTotal] = useState(0)
   const [advancePaymentCurrency, setAdvancePaymentCurrency] = useState("GTQ")
 
-  // Menu dialog state (F3)
+  // Estado del diálogo de menú (F3)
   const [menuDialogOpen, setMenuDialogOpen] = useState(false)
   const [selectedMenuProduct, setSelectedMenuProduct] = useState<Product | null>(null)
+  const [furnitureDialogOpen, setFurnitureDialogOpen] = useState(false)
+  const [selectedFurnitureItem, setSelectedFurnitureItem] = useState<FurnitureItem | null>(null)
+  const [furnitureDailyQuantities, setFurnitureDailyQuantities] = useState<Array<{ date: string; quantity: number }>>([])
   const [menuFormData, setMenuFormData] = useState({
     scheduledDate: "",
     startTime: "",
@@ -304,7 +307,7 @@ function QuotesContent() {
     setConflictWarning(null)
   }
 
-  // Check for space conflicts
+  // Verificar conflictos de espacio
   const checkSpaceConflict = async (space: any, eventDate: string) => {
     if (!space.locationId || !eventDate) return
     
@@ -345,12 +348,13 @@ function QuotesContent() {
       const price = spaces[index].pricingMode === "PER_PERSON" && prev.guestCount > 0
         ? prev.guestCount * (spaces[index].unitPrice || 0)
         : spaces[index].unitPrice || 0
-      spaces[index].totalPrice = price
+      const discount = spaces[index].discountValue || 0
+      spaces[index].totalPrice = spaces[index].adjustmentType === "SURCHARGE" ? price + discount : price - discount
 
       return { ...prev, spaces }
     })
 
-    // Check for conflicts when location or time changes
+    // Verificar conflictos cuando cambia ubicación u horario
     if (["locationId", "startTime", "endTime"].includes(field)) {
       const space = formData.spaces[index]
       const updatedSpace = { ...space, [field]: value }
@@ -373,7 +377,8 @@ function QuotesContent() {
           if (oldCurrency === "GTQ" && newCurrency === "USD") newPrice = +(sp.unitPrice / exchangeRate).toFixed(2)
           else if (oldCurrency === "USD" && newCurrency === "GTQ") newPrice = +(sp.unitPrice * exchangeRate).toFixed(2)
           const total = sp.pricingMode === "PER_PERSON" && newGuestCount > 0 ? newGuestCount * newPrice : newPrice
-          return { ...sp, unitPrice: newPrice, totalPrice: total }
+          const discount = sp.discountValue || 0
+          return { ...sp, unitPrice: newPrice, totalPrice: sp.adjustmentType === "SURCHARGE" ? total + discount : total - discount }
         }),
         items: prev.items.map(item => {
           let newPrice = item.unitPrice
@@ -455,21 +460,45 @@ function QuotesContent() {
   }
 
   const addFurnitureItem = (furnitureItem: FurnitureItem) => {
-    const rentalPrice = furnitureItem.rentalPrice || 0
+    setSelectedFurnitureItem(furnitureItem)
+    const eventDates = getEventDates()
+    const existing = formData.items.find(i => i.furnitureId === furnitureItem.id)
+    
+    if (existing) {
+      setFurnitureDailyQuantities(eventDates.map(date => ({
+        date,
+        quantity: existing.dailyQuantities?.find((dq: any) => dq.date === date)?.quantity || 0
+      })))
+    } else {
+      setFurnitureDailyQuantities(eventDates.map(date => ({ date, quantity: 0 })))
+    }
+    setFurnitureDialogOpen(true)
+  }
+
+  const confirmFurnitureItem = () => {
+    if (!selectedFurnitureItem) return
+    const rentalPrice = selectedFurnitureItem.rentalPrice || 0
     const price = formData.currency === "USD" && rentalPrice > 0
       ? +(rentalPrice / exchangeRate).toFixed(2) 
       : rentalPrice
-    const exists = formData.items.find(i => i.furnitureId === furnitureItem.id)
-    const eventDates = getEventDates()
+    
+    const totalQty = furnitureDailyQuantities.reduce((sum, dq) => sum + dq.quantity, 0)
+    if (totalQty === 0) {
+      alert("Ingresá al menos 1 unidad en algún día")
+      return
+    }
+    
+    const totalPrice = totalQty * price
+    const exists = formData.items.find(i => i.furnitureId === selectedFurnitureItem.id)
     
     if (exists) {
       setFormData(prev => ({
         ...prev,
         items: prev.items.map(i =>
-          i.furnitureId === furnitureItem.id ? { 
+          i.furnitureId === selectedFurnitureItem.id ? { 
             ...i, 
-            dailyQuantities: eventDates.map(date => ({ date, quantity: (i.dailyQuantities?.find((dq: any) => dq.date === date)?.quantity || 0) + 1 })),
-            totalPrice: eventDates.reduce((sum, date) => sum + ((i.dailyQuantities?.find((dq: any) => dq.date === date)?.quantity || 0) + 1) * i.unitPrice, 0)
+            dailyQuantities: furnitureDailyQuantities.filter(dq => dq.quantity > 0),
+            totalPrice
           } : i
         ),
       }))
@@ -477,15 +506,17 @@ function QuotesContent() {
       setFormData(prev => ({
         ...prev,
         items: [...prev.items, { 
-          furnitureId: furnitureItem.id, 
-          name: furnitureItem.name, 
+          furnitureId: selectedFurnitureItem.id, 
+          name: selectedFurnitureItem.name, 
           category: "MOBILIARIO", 
-          dailyQuantities: eventDates.map(date => ({ date, quantity: 1 })),
+          dailyQuantities: furnitureDailyQuantities.filter(dq => dq.quantity > 0),
           unitPrice: price, 
-          totalPrice: eventDates.length * price 
+          totalPrice
         }],
       }))
     }
+    setFurnitureDialogOpen(false)
+    setSelectedFurnitureItem(null)
   }
 
   const confirmMenuItem = () => {
@@ -691,7 +722,7 @@ function QuotesContent() {
     if (!selectedQuote?.id) return
     setSavingLiquidation(true)
     try {
-      // 1. Create event closing
+      // 1. Crear cierre de evento
       const res = await fetch("/api/event-closings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -708,7 +739,7 @@ function QuotesContent() {
         return
       }
 
-      // 2. Update quote status to FINALIZADA
+      // 2. Actualizar estado de cotización a FINALIZADA
       await fetch(`/api/quotes/${selectedQuote.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -717,7 +748,7 @@ function QuotesContent() {
 
       setLiquidationOpen(false)
       setSelectedQuote(null)
-      fetchData() // Refresh the list
+      fetchData() // Actualizar la lista
     } catch (error) {
       console.error("Error creating liquidation:", error)
       alert("Error al liquidar evento")
@@ -815,14 +846,15 @@ function QuotesContent() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cliente..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <div className="flex rounded-lg overflow-hidden border border-border flex-wrap">
+      <div className="space-y-3">
+        {/* Búsqueda + cliente */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Buscar por cliente..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          </div>
           <select
-            className="vm-view-switch vm-view-switch--idle text-xs"
+            className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground sm:min-w-[200px] focus:outline-none focus:ring-2 focus:ring-primary/30"
             value={clientFilter}
             onChange={e => setClientFilter(e.target.value)}
           >
@@ -831,15 +863,29 @@ function QuotesContent() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          {(["all", ...statuses] as const).map(s => (
-            <button
-              key={s}
-              className={cn("vm-view-switch", statusFilter === s ? "vm-view-switch--active" : "vm-view-switch--idle")}
-              onClick={() => setStatusFilter(s)}
-            >
-              {s === "all" ? "Todos" : (quoteStatusLabels[s] ?? s)}
-            </button>
-          ))}
+        </div>
+        {/* Estados — chips de filtro */}
+        <div className="flex flex-wrap gap-2">
+          {(["all", ...statuses] as const).map(s => {
+            const active = statusFilter === s
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground border-border hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                {s !== "all" && (
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: quoteStatusColors[s] || "#9ca3af" }} />
+                )}
+                {s === "all" ? "Todos" : (quoteStatusLabels[s] ?? s)}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -919,6 +965,27 @@ function QuotesContent() {
           <DialogHeader>
             <DialogTitle className="font-display text-xl">{editingQuoteId ? "Editar Cotización" : "Nueva Cotización"}</DialogTitle>
           </DialogHeader>
+          
+          {/* Preview en tiempo real */}
+          {(formData.spaces.length > 0 || formData.items.length > 0) && (
+            <div className="sticky top-0 z-10 bg-background border-b border-border pb-3 -mx-6 px-6">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="vm-info-block">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Espacios</p>
+                  <p className="text-lg font-semibold text-foreground">{formData.spaces.length}</p>
+                </div>
+                <div className="vm-info-block">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Items</p>
+                  <p className="text-lg font-semibold text-foreground">{formData.items.length}</p>
+                </div>
+                <div className="vm-info-block bg-primary/5 border-primary/20">
+                  <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">Total</p>
+                  <p className="text-lg font-mono font-bold text-primary">{formatCurrencyByCode(spacesTotal + itemsTotal, formData.currency)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Cliente + Fecha + Moneda + Personas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1038,7 +1105,21 @@ function QuotesContent() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Precio ({formData.currency})</Label>
-                      <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.unitPrice || ""} onChange={e => updateSpace(idx, "unitPrice", parseFloat(e.target.value) || 0)} />
+                      <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.unitPrice ?? ""} onChange={e => updateSpace(idx, "unitPrice", e.target.value === "" ? 0 : parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Tipo de ajuste</Label>
+                      <Select value={space.adjustmentType || "DISCOUNT"} onValueChange={v => updateSpace(idx, "adjustmentType", v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DISCOUNT">Descuento</SelectItem>
+                          <SelectItem value="SURCHARGE">Recargo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Monto ajuste ({formData.currency})</Label>
+                      <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.discountValue || ""} onChange={e => updateSpace(idx, "discountValue", parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   {space.locationType === "ROOM" && (
@@ -1339,6 +1420,19 @@ function QuotesContent() {
                   {selectedQuote.parkingSpot && (
                     <p className="text-xs text-muted-foreground mt-0.5">Parqueo: {formatParkingSpots(selectedQuote.parkingSpot)}</p>
                   )}
+                  {(selectedQuote.client.address || selectedQuote.client.rfc || selectedQuote.client.email) && (
+                    <div className="mt-1 space-y-0.5">
+                      {selectedQuote.client.address && (
+                        <p className="text-xs text-muted-foreground">Dirección: {selectedQuote.client.address}</p>
+                      )}
+                      {selectedQuote.client.rfc && (
+                        <p className="text-xs text-muted-foreground">NIT: {selectedQuote.client.rfc}</p>
+                      )}
+                      {selectedQuote.client.email && (
+                        <p className="text-xs text-muted-foreground">Correo: {selectedQuote.client.email}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <span className="vm-status-badge shrink-0" style={{ backgroundColor: quoteStatusColors[selectedQuote.status] || "#9ca3af", color: "#fff" }}>
                   {quoteStatusLabels[selectedQuote.status] ?? selectedQuote.status}
@@ -1464,7 +1558,7 @@ function QuotesContent() {
                 </div>
               )}
 
-              {/* Payments summary */}
+              {/* Resumen de pagos */}
               {selectedQuote.payments && selectedQuote.payments.length > 0 && (
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pagos Recibidos</p>
@@ -1487,7 +1581,7 @@ function QuotesContent() {
                 </div>
               )}
 
-              {/* Status actions */}
+              {/* Acciones de estado */}
               <div className="flex gap-2 flex-wrap pt-1">
                 {selectedQuote.status === "BORRADOR" && (
                   <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { handleStatusChange(selectedQuote.id, "ENVIADA"); setSelectedQuote(null) }}>
@@ -1553,9 +1647,71 @@ function QuotesContent() {
                 )}
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+        </DialogContent>
+      </Dialog>
       )}
+
+      {/* ── Dialog: Mobiliario por día ──────────────────────────────────────── */}
+      <Dialog open={furnitureDialogOpen} onOpenChange={open => { setFurnitureDialogOpen(open); if (!open) setSelectedFurnitureItem(null) }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">
+              {selectedFurnitureItem ? `Editar ${selectedFurnitureItem.name}` : "Agregar Mobiliario"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Seleccioná la cantidad para cada día del evento:
+            </div>
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left p-3 font-semibold">Día</th>
+                    <th className="text-center p-3 font-semibold">Cantidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {furnitureDailyQuantities.map((dq, idx) => (
+                    <tr key={dq.date} className="border-t border-border">
+                      <td className="p-3">
+                        {new Date(dq.date + "T12:00:00").toLocaleDateString("es-GT", { 
+                          weekday: "long", 
+                          day: "numeric", 
+                          month: "long" 
+                        })}
+                      </td>
+                      <td className="p-3 text-center">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={dq.quantity}
+                          onChange={e => {
+                            const newQuantities = [...furnitureDailyQuantities]
+                            newQuantities[idx] = { ...dq, quantity: parseInt(e.target.value) || 0 }
+                            setFurnitureDailyQuantities(newQuantities)
+                          }}
+                          className="w-20 mx-auto text-center font-mono"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+              <span className="text-sm font-semibold">Total de unidades:</span>
+              <span className="text-lg font-mono font-bold">
+                {furnitureDailyQuantities.reduce((sum, dq) => sum + dq.quantity, 0)}
+              </span>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => { setFurnitureDialogOpen(false); setSelectedFurnitureItem(null) }}>Cancelar</Button>
+            <Button type="button" onClick={confirmFurnitureItem}>Agregar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Dialog: Liquidación ───────────────────────────────────────────────── */}
       <Dialog open={liquidationOpen} onOpenChange={setLiquidationOpen}>
@@ -1564,7 +1720,7 @@ function QuotesContent() {
             <DialogTitle className="font-display text-xl">Liquidar Evento</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleLiquidationSubmit} className="space-y-5">
-            {/* Return status */}
+            {/* Estado de devolución */}
             <div className="space-y-2">
               <Label>Estado General de Devolución *</Label>
               <Select value={liquidationReturnStatus} onValueChange={setLiquidationReturnStatus}>
@@ -1577,7 +1733,7 @@ function QuotesContent() {
               </Select>
             </div>
 
-            {/* Items from Quote */}
+            {/* Items de la cotización */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Items de la Cotización</Label>

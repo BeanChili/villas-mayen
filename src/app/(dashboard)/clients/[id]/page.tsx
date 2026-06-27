@@ -75,7 +75,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             {client.phone && <p><span className="text-muted-foreground">Teléfono:</span> {client.phone}</p>}
             {client.email && <p><span className="text-muted-foreground">Email:</span> {client.email}</p>}
             {client.address && <p><span className="text-muted-foreground">Dirección:</span> {client.address}</p>}
-            {client.rfc && <p><span className="text-muted-foreground">RFC/NIT:</span> {client.rfc}</p>}
+            {client.rfc && <p><span className="text-muted-foreground">NIT:</span> {client.rfc}</p>}
             {client.observations && <p><span className="text-muted-foreground">Observaciones:</span> {client.observations}</p>}
           </CardContent>
         </Card>

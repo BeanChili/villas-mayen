@@ -3,7 +3,6 @@
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer"
 
 // ─── columnas de la tabla ──────────────────────────────────────────────────
-const CODE_FLEX = 0.6
 const QTY_FLEX = 0.7
 const DESC_FLEX = 2.4
 const DAY_FLEX = 0.95
@@ -32,7 +31,7 @@ const styles = StyleSheet.create({
   headerRight: {
     width: "35%",
     border: 1,
-    borderColor: "#7C6FCD",
+    borderColor: "#2E7D32",
     borderRadius: 6,
     padding: 8,
   },
@@ -61,7 +60,7 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 12,
     border: 1,
-    borderColor: "#7C6FCD",
+    borderColor: "#2E7D32",
     borderRadius: 6,
     padding: 10,
   },
@@ -88,7 +87,7 @@ const styles = StyleSheet.create({
     width: "40%",
     marginLeft: 10,
     border: 1,
-    borderColor: "#7C6FCD",
+    borderColor: "#2E7D32",
     borderRadius: 6,
     padding: 8,
     alignSelf: "flex-start",
@@ -124,12 +123,12 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#D6CFF5",
+    backgroundColor: "#C8E6C9",
     borderBottom: 1,
     borderBottomColor: "#000",
     fontWeight: "bold",
     fontSize: 8,
-    minHeight: 32,
+    minHeight: 44,
   },
   tableRow: {
     flexDirection: "row",
@@ -163,21 +162,22 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: "bold",
     textAlign: "center",
-    paddingVertical: 4,
-    minHeight: 16,
+    paddingVertical: 3,
+    minHeight: 22,
     borderBottomWidth: 1,
     borderBottomColor: "#000",
+    justifyContent: "center",
   },
   daysGroupRow: {
     flexDirection: "row",
-    flex: 1,
+    minHeight: 20,
   },
   dayHeaderCell: {
     flex: 1,
     fontSize: 7,
     textAlign: "center",
     paddingVertical: 4,
-    minHeight: 16,
+    minHeight: 20,
     borderRightWidth: 1,
     borderRightColor: "#ccc",
     justifyContent: "center",
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     fontSize: 7,
     textAlign: "center",
     paddingVertical: 4,
-    minHeight: 16,
+    minHeight: 20,
     justifyContent: "center",
   },
   dayCell: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   totalRow: {
     flexDirection: "row",
-    backgroundColor: "#F0EBFB",
+    backgroundColor: "#E8F5E9",
     borderTopWidth: 2,
     borderTopColor: "#000",
   },
@@ -334,7 +334,7 @@ function dayLabel(key: string): string {
 export default function QuotePDF({ quote }: QuotePDFProps) {
   const formatCurrency = (amount: number, currency: string) => {
     const symbol = currency === "USD" ? "$" : "Q"
-    return `${symbol} ${amount.toFixed(2)}`
+    return `${symbol} ${amount.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
   const formatPriceOrFree = (amount: number, currency: string) => {
@@ -354,7 +354,9 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
   validityDate.setDate(validityDate.getDate() + 15)
 
   const eventDates = getEventDateRange(quote.eventDate, quote.endDate)
-  const daysFlexTotal = DAY_FLEX * eventDates.length
+  const singleDay = eventDates.length === 1
+  const dayFlex = singleDay ? 0.85 : DAY_FLEX
+  const daysFlexTotal = dayFlex * eventDates.length
 
   // Agrupar habitaciones por nombre base y horario
   const groupedSpaces: Array<{ name: string; startTime: string; endTime: string; unitPrice: number; totalPrice: number; count: number }> = []
@@ -384,9 +386,9 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
           <View style={styles.headerLeft}>
             <Image src="/logo.png" style={{ width: 60, height: 60, marginBottom: 8 }} />
             <Text style={styles.companyName}>CASA VILLAS MAYEN</Text>
-            <Text style={styles.companyInfo}>10 Calle 28-00 Zona 4, El Naranjo</Text>
+            <Text style={styles.companyInfo}>10 Calle 28-00 Zona 4, Finca El Naranjo</Text>
             <Text style={styles.companyInfo}>Mixco, Guatemala</Text>
-            <Text style={styles.companyInfo}>Tel. (502) 2434-3375, 5580-0340</Text>
+            <Text style={styles.companyInfo}>Tel. +(502) 2434-3375, +(502) 5580-0340</Text>
             <Text style={styles.companyInfo}>villas.mayen@gmail.com</Text>
           </View>
           <View style={styles.headerRight}>
@@ -396,16 +398,18 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
             </View>
             <View style={styles.quoteInfoRow}>
               <Text style={styles.label}>Cotización No.</Text>
-              <Text style={{ color: "#FF6F00" }}>{quoteNumber}</Text>
-            </View>
-            <View style={styles.quoteInfoRow}>
-              <Text style={styles.label}>Forma de Pago:</Text>
-              <Text>***</Text>
+              <Text style={{ color: "#2E7D32", fontWeight: "bold" }}>{quoteNumber}</Text>
             </View>
             <View style={styles.quoteInfoRow}>
               <Text style={styles.label}>VALIDEZ:</Text>
               <Text>{formatDate(validityDate.toISOString())}</Text>
             </View>
+            {quote.guestCount ? (
+              <View style={styles.quoteInfoRow}>
+                <Text style={styles.label}>No. Personas:</Text>
+                <Text>{quote.guestCount}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -420,11 +424,15 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
               </View>
               <View style={styles.clientRow}>
                 <Text style={styles.clientLabel}>NIT:</Text>
-                <Text style={styles.clientValue}></Text>
+                <Text style={styles.clientValue}>{(quote.client as any).rfc || ""}</Text>
               </View>
               <View style={styles.clientRow}>
-                <Text style={styles.clientLabel}>Atención a:</Text>
-                <Text style={styles.clientValue}></Text>
+                <Text style={styles.clientLabel}>Correo:</Text>
+                <Text style={styles.clientValue}>{quote.client.email || ""}</Text>
+              </View>
+              <View style={styles.clientRow}>
+                <Text style={styles.clientLabel}>Teléfono:</Text>
+                <Text style={styles.clientValue}>{quote.client.phone || ""}</Text>
               </View>
               <View style={styles.clientRow}>
                 <Text style={styles.clientLabel}>Dirección:</Text>
@@ -433,7 +441,7 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
             </View>
             <View style={styles.serviceBox}>
               <Text style={styles.serviceLabel}>Servicio:</Text>
-              <Text style={styles.serviceValue}>{(quote.eventTitle || "SERVICIOS").toUpperCase()}</Text>
+              <Text style={styles.serviceValue}>{(quote.eventTitle || "EVENTO").toUpperCase()}</Text>
             </View>
           </View>
         </View>
@@ -446,27 +454,29 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
         {/* Items Table */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.cell, styles.cellCenter, { flex: CODE_FLEX }]}>Código</Text>
             <Text style={[styles.cell, styles.cellCenter, { flex: QTY_FLEX }]}>Cantidad</Text>
-            <Text style={[styles.cell, { flex: DESC_FLEX }]}>Descripción</Text>
-            <View style={[styles.daysGroup, { flex: daysFlexTotal }]}>
-              <Text style={styles.daysGroupHeader}>DÍAS / CANTIDAD DE PERSONAS</Text>
-              <View style={styles.daysGroupRow}>
-                {eventDates.map((d, i) => (
-                  <Text key={d} style={i === eventDates.length - 1 ? styles.dayHeaderCellLast : styles.dayHeaderCell}>
-                    {dayLabel(d)}
-                  </Text>
-                ))}
+            <Text style={[styles.cell, styles.cellCenter, { flex: DESC_FLEX }]}>Descripción</Text>
+            {singleDay ? (
+              <Text style={[styles.cell, styles.cellCenter, { flex: daysFlexTotal }]}>{dayLabel(eventDates[0])}</Text>
+            ) : (
+              <View style={[styles.daysGroup, { flex: daysFlexTotal }]}>
+                <Text style={styles.daysGroupHeader}>DÍAS / CANTIDAD DE PERSONAS</Text>
+                <View style={styles.daysGroupRow}>
+                  {eventDates.map((d, i) => (
+                    <Text key={d} style={i === eventDates.length - 1 ? styles.dayHeaderCellLast : styles.dayHeaderCell}>
+                      {dayLabel(d)}
+                    </Text>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
             <Text style={[styles.cell, styles.cellCenter, { flex: PRICE_FLEX }]}>Precio Unitario</Text>
-            <Text style={[styles.cellLast, styles.cellRight, { flex: TOTAL_FLEX }]}>Total</Text>
+            <Text style={[styles.cellLast, styles.cellCenter, { flex: TOTAL_FLEX }]}>Total</Text>
           </View>
 
           {/* Espacios (salones, habitaciones) reservados durante todo el evento */}
           {groupedSpaces.map((g, idx) => (
             <View key={`space-${idx}`} style={styles.tableRow}>
-              <Text style={[styles.cell, styles.cellCenter, { flex: CODE_FLEX }]}></Text>
               <Text style={[styles.cell, styles.cellCenter, { flex: QTY_FLEX }]}>{g.count > 1 ? g.count : ""}</Text>
               <Text style={[styles.cell, { flex: DESC_FLEX }]}>
                 {g.name}{g.count > 1 ? ` (${g.count} habitaciones)` : ''} ({g.startTime} - {g.endTime})
@@ -496,7 +506,6 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
 
             return (
               <View key={`item-${idx}`} style={styles.tableRow}>
-                <Text style={[styles.cell, styles.cellCenter, { flex: CODE_FLEX }]}></Text>
                 <Text style={[styles.cell, styles.cellCenter, { flex: QTY_FLEX }]}>{totalQty || ""}</Text>
                 <Text style={[styles.cell, { flex: DESC_FLEX }]}>
                   {item.name}
@@ -521,7 +530,7 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
 
           {/* Total */}
           <View style={styles.totalRow}>
-            <Text style={[styles.totalLabelCell, { flex: CODE_FLEX + QTY_FLEX + DESC_FLEX + daysFlexTotal + PRICE_FLEX }]}>TOTAL</Text>
+            <Text style={[styles.totalLabelCell, { flex: QTY_FLEX + DESC_FLEX + daysFlexTotal + PRICE_FLEX }]}>TOTAL</Text>
             <Text style={[styles.totalValueCell, { flex: TOTAL_FLEX }]}>{formatCurrency(quote.totalAmount, quote.currency)}</Text>
           </View>
         </View>

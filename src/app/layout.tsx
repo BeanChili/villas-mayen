@@ -25,7 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Casa Villas Magen - Sistema de Gestión",
+  title: "Casa Villas Mayen - Sistema de Gestión",
   description: "Sistema de reservaciones y eventos",
 }
 

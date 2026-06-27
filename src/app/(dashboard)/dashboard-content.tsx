@@ -6,6 +6,7 @@ import { Calendar, Users, Package, Wallet, Clock, AlertTriangle, Play, MapPin, D
 import Link from "next/link"
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils"
 import { quoteStatusColors } from "@/types"
+import DashboardCharts from "./dashboard-charts"
 
 interface DashboardData {
   quotesCount: number
@@ -16,6 +17,9 @@ interface DashboardData {
   furnitureInUse: number
   damagedFurniture: number
   executingEvents: any[]
+  monthlyRevenue: { label: string; facturado: number; cobrado: number }[]
+  statusBreakdown: { status: string; count: number }[]
+  topSalones: { name: string; count: number }[]
 }
 
 interface User {
@@ -112,6 +116,13 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
           </Link>
         ))}
       </div>
+
+      {/* Gráficos */}
+      <DashboardCharts
+        monthlyRevenue={data.monthlyRevenue}
+        statusBreakdown={data.statusBreakdown}
+        topSalones={data.topSalones}
+      />
 
       {/* Alerts */}
       {alerts.length > 0 && (

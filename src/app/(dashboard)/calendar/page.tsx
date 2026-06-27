@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { statusLabels, quoteStatusLabels, quoteStatusColors } from "@/types"
-import { formatCurrency, getStatusColor, getStatusLabel, getScheduleFromTime } from "@/lib/utils"
+import { formatCurrency, getStatusColor, getStatusLabel, getScheduleFromTime, formatParkingSpots } from "@/lib/utils"
 import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, Check, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -50,6 +50,9 @@ interface Reservation {
   observations?: string
   spaces?: any[]
   payments?: Payment[]
+  eventTitle?: string
+  parkingSpot?: string
+  guestCount?: number
 
   // Computed on fetch
   _total?: number
@@ -79,6 +82,13 @@ const SCHEDULE_SHORT: Record<Schedule, string> = {
   NOCHE:  "N",
 }
 
+// Franjas horarias para la vista de Día — en horas decimales, fin de NOCHE = 25 (1am del día siguiente)
+const SCHEDULE_BANDS: { key: Schedule; label: string; start: number; end: number; bg: string }[] = [
+  { key: "MANANA", label: "Mañana", start: 7,  end: 13, bg: "rgba(217, 119, 6, 0.06)" },
+  { key: "TARDE",  label: "Tarde",  start: 14, end: 19, bg: "rgba(59, 130, 246, 0.06)" },
+  { key: "NOCHE",  label: "Noche",  start: 20, end: 25, bg: "rgba(99, 102, 241, 0.07)" },
+]
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function getDateKey(date: Date): string {
@@ -92,23 +102,6 @@ function parseDate(str: string | Date): Date {
     return new Date(y, m - 1, d)
   }
   return new Date(str)
-}
-
-function slotVisible(res: Reservation, dayKey: string, slotIdx: number): boolean {
-  const startKey = getDateKey(parseDate(res.startDate))
-  const endKey   = getDateKey(parseDate(res.endDate))
-  const si = SCHEDULE_ORDER.indexOf(res.startSchedule as Schedule)
-  const ei = SCHEDULE_ORDER.indexOf(res.endSchedule as Schedule)
-
-  if (dayKey < startKey || dayKey > endKey) return false
-
-  const isFirst = dayKey === startKey
-  const isLast  = dayKey === endKey
-
-  if (isFirst && isLast) return slotIdx >= si && slotIdx <= ei
-  if (isFirst)           return slotIdx >= si
-  if (isLast)            return slotIdx <= ei
-  return true
 }
 
 // ─── status flow ──────────────────────────────────────────────────────────────
@@ -247,6 +240,9 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
           <h3 className="text-lg font-semibold text-foreground">
             {reservation.client.name}
           </h3>
+          {reservation.eventTitle && (
+            <p className="text-sm text-primary font-medium mt-0.5">{reservation.eventTitle}</p>
+          )}
           <div className="flex items-center gap-2 mt-1 text-muted-foreground">
             <MapPin className="w-3.5 h-3.5" />
               <span className="text-base">{reservation.locationName}</span>
@@ -274,7 +270,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
           <div className="flex items-center gap-1 mt-1.5 text-muted-foreground">
             <Clock className="w-3 h-3" />
             <span className="text-xs">
-              {SCHEDULE_LABELS[reservation.startSchedule as Schedule] ?? reservation.startSchedule}
+              {reservation.spaces?.[0]?.startTime ?? (SCHEDULE_LABELS[reservation.startSchedule as Schedule] ?? reservation.startSchedule)}
             </span>
           </div>
         </div>
@@ -288,11 +284,29 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
           <div className="flex items-center gap-1 mt-1.5 text-muted-foreground">
             <Clock className="w-3 h-3" />
             <span className="text-xs">
-              {SCHEDULE_LABELS[reservation.endSchedule as Schedule] ?? reservation.endSchedule}
+              {reservation.spaces?.[reservation.spaces.length - 1]?.endTime ?? (SCHEDULE_LABELS[reservation.endSchedule as Schedule] ?? reservation.endSchedule)}
             </span>
           </div>
         </div>
       </div>
+
+      {/* Parqueo / Personas */}
+      {(reservation.parkingSpot || reservation.guestCount) && (
+        <div className="grid grid-cols-2 gap-3">
+          {reservation.parkingSpot && (
+            <div className="vm-info-block">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Parqueo</p>
+              <p className="text-sm font-medium text-foreground">{formatParkingSpots(reservation.parkingSpot)}</p>
+            </div>
+          )}
+          {reservation.guestCount && (
+            <div className="vm-info-block">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Personas</p>
+              <p className="text-sm font-medium text-foreground">{reservation.guestCount}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-3 flex-wrap items-center">
@@ -521,6 +535,12 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
           <p className="text-sm text-foreground/80 leading-relaxed">{reservation.observations}</p>
         </div>
       )}
+
+      <a href={`/quotes?id=${reservation.id}`} className="block">
+        <Button type="button" variant="outline" className="w-full gap-2">
+          <FileText className="w-4 h-4" /> Ver cotización completa
+        </Button>
+      </a>
     </div>
   )
 }
@@ -542,10 +562,11 @@ function ReservationsContent() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [displayMode, setDisplayMode] = useState<"list" | "calendar">("calendar")
-  const [granularity, setGranularity] = useState<"month" | "week" | "day">("month")
+  const [granularity, setGranularity] = useState<"biweek" | "week" | "day">("biweek")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [formError, setFormError] = useState("")
+  const [hoverCard, setHoverCard] = useState<{ res: Reservation; x: number; y: number; above: boolean } | null>(null)
 
   const [formData, setFormData] = useState({
     clientId: "",
@@ -609,6 +630,9 @@ function ReservationsContent() {
           observations: q.notes || "",
           payments: q.payments || [],
           spaces,
+          eventTitle: q.eventTitle || undefined,
+          parkingSpot: q.parkingSpot || undefined,
+          guestCount: q.guestCount || undefined,
         } as Reservation
       })
 
@@ -632,8 +656,10 @@ function ReservationsContent() {
   // ── navegación ─────────────────────────────────────────────────────────────
 
   const prevPeriod = () => {
-    if (granularity === "month") {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+    if (granularity === "biweek") {
+      const d = new Date(currentDate)
+      d.setDate(d.getDate() - 14)
+      setCurrentDate(d)
     } else if (granularity === "week") {
       const d = new Date(currentDate)
       d.setDate(d.getDate() - 7)
@@ -646,8 +672,10 @@ function ReservationsContent() {
   }
 
   const nextPeriod = () => {
-    if (granularity === "month") {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+    if (granularity === "biweek") {
+      const d = new Date(currentDate)
+      d.setDate(d.getDate() + 14)
+      setCurrentDate(d)
     } else if (granularity === "week") {
       const d = new Date(currentDate)
       d.setDate(d.getDate() + 7)
@@ -719,17 +747,6 @@ function ReservationsContent() {
   const monthNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
   const dayNames   = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"]
 
-  const getMonthDays = (date: Date): (number | null)[] => {
-    const year  = date.getFullYear()
-    const month = date.getMonth()
-    const first = new Date(year, month, 1).getDay()
-    const last  = new Date(year, month + 1, 0).getDate()
-    const arr: (number | null)[] = []
-    for (let i = 0; i < first; i++) arr.push(null)
-    for (let i = 1; i <= last; i++) arr.push(i)
-    return arr
-  }
-
   const getWeekDays = (date: Date): Date[] => {
     const dow = date.getDay()
     const sunday = new Date(date)
@@ -739,6 +756,16 @@ function ReservationsContent() {
       d.setDate(sunday.getDate() + i)
       return d
     })
+  }
+
+  const getBiweekDays = (date: Date): Date[] => {
+    const week1 = getWeekDays(date)
+    const week2 = week1.map(d => {
+      const n = new Date(d)
+      n.setDate(n.getDate() + 7)
+      return n
+    })
+    return [...week1, ...week2]
   }
 
   const getResForDay = (dayKey: string) =>
@@ -752,195 +779,20 @@ function ReservationsContent() {
 
   const today = getDateKey(new Date())
 
-  // ── calendar bar positioning ──────────────────────────────────────────────
+  // ── hover card (posición fija, no se recorta por overflow del contenedor) ──
 
-  const slotToLeft  = (idx: number) => `${(idx / 3) * 100}%`
-  const slotToRight = (idx: number) => `${((2 - idx) / 3) * 100}%`
-
-  // Max bars to show before "+N más" overflow label
-  const MAX_BARS = 3
-
-  // ── render celda calendario ───────────────────────────────────────────────
-
-  const renderDayCell = (dayKey: string, dayNum: number | string, hideNumber = false) => {
-    const isToday  = dayKey === today
-    const dayRes   = getResForDay(dayKey)
-    const visible  = dayRes.slice(0, MAX_BARS)
-    const overflow = dayRes.length - MAX_BARS
-
-    const handleCellClick = () => {
-      window.location.href = "/quotes"
-    }
-
-    return (
-      <div
-        className="vm-day-cell cursor-pointer"
-        style={{ minHeight: granularity === "week" ? 180 : 140 }}
-        onClick={handleCellClick}
-      >
-        {/* Day number — hidden in week view (header already shows it) */}
-        {!hideNumber && (
-          <div className="flex items-center gap-1 mb-1 shrink-0">
-            {isToday ? (
-              <span className="vm-day-today">{dayNum}</span>
-            ) : (
-              <span className="text-sm font-medium text-muted-foreground">{dayNum}</span>
-            )}
-          </div>
-        )}
-
-        {/* Third guides + bars */}
-        <div className="relative flex-1 flex flex-col gap-1">
-          {/* Third dividers */}
-          <div className="absolute inset-0 flex pointer-events-none" aria-hidden="true">
-            <div className="flex-1 border-r border-border/40" />
-            <div className="flex-1 border-r border-border/40" />
-            <div className="flex-1" />
-          </div>
-
-          {/* Reservation bars */}
-          {visible.map((res) => {
-            const startKey = getDateKey(parseDate(res.startDate))
-            const endKey   = getDateKey(parseDate(res.endDate))
-            const isFirst  = dayKey === startKey
-            const isLast   = dayKey === endKey
-            const si = SCHEDULE_ORDER.indexOf(res.startSchedule as Schedule)
-            const ei = SCHEDULE_ORDER.indexOf(res.endSchedule as Schedule)
-
-            const left  = isFirst ? slotToLeft(si)  : "0%"
-            const right = isLast  ? slotToRight(ei) : "0%"
-
-            // Show location label only on the first day of the reservation
-            const showLabel = isFirst
-
-            return (
-              <div
-                key={res.id}
-                className="relative"
-                style={{ height: granularity === "week" ? 22 : 18 }}
-              >
-                <div
-                  className="vm-res-bar flex items-center overflow-hidden rounded-sm"
-                  style={{
-                    left,
-                    right,
-                    backgroundColor: quoteStatusColors[res.status] || getStatusColor(res.status),
-                  }}
-                  onClick={(e) => { e.stopPropagation(); router.push(`/quotes?id=${res.id}`) }}
-                  title={`${res.locationName} — ${res.client.name}`}
-                >
-                  {showLabel && (
-                    <span
-                      className="truncate leading-none pointer-events-none select-none"
-                      style={{
-                        fontSize: granularity === "week" ? "12px" : "10px",
-                        fontWeight: 600,
-                        color: "rgba(255,255,255,0.95)",
-                        paddingLeft: "6px",
-                        paddingRight: "6px",
-                        letterSpacing: "0.01em",
-                      }}
-                    >
-                      {res.client.name}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Overflow badge */}
-          {overflow > 0 && (
-            <div className="flex items-center mt-0.5">
-              <span className="text-[10px] font-semibold text-muted-foreground bg-muted rounded px-1 py-0.5 leading-none">
-                +{overflow} más
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-    )
+  const showHoverCard = (e: React.MouseEvent, res: Reservation) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const above = rect.bottom > window.innerHeight - 220
+    setHoverCard({
+      res,
+      x: Math.min(rect.left, window.innerWidth - 280),
+      y: above ? rect.top - 4 : rect.bottom + 4,
+      above,
+    })
   }
 
-  // ── vista mensual ──────────────────────────────────────────────────────────
-
-  const renderMonthView = () => {
-    const days = getMonthDays(currentDate)
-    return (
-      <div className="grid grid-cols-7 border border-border rounded-xl overflow-hidden">
-        {dayNames.map(d => (
-          <div key={d} className="text-xs font-semibold text-muted-foreground text-center py-2.5 bg-muted/50 border-b border-border uppercase tracking-wider">
-            {d}
-          </div>
-        ))}
-        {days.map((day, idx) => {
-          if (!day) return (
-            <div
-              key={idx}
-              className={cn("min-h-28 bg-muted/30", idx >= 7 && "border-t border-border")}
-            />
-          )
-          const dayKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-          const row = Math.floor(idx / 7)
-          return (
-            <div
-              key={idx}
-              className={cn(
-                row > 0 && "border-t border-border",
-                idx % 7 > 0 && "border-l border-border"
-              )}
-            >
-              {renderDayCell(dayKey, day)}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // ── vista semanal ──────────────────────────────────────────────────────────
-
-  const renderWeekView = () => {
-    const weekDays = getWeekDays(currentDate)
-
-    return (
-      <div className="grid grid-cols-7 border border-border rounded-xl overflow-hidden">
-        {/* Day headers */}
-        {weekDays.map((d, i) => {
-          const isT = getDateKey(d) === today
-          return (
-            <div key={i} className={cn("py-2.5 text-center bg-muted/50 border-b border-border", i > 0 && "border-l border-border")}>
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{dayNames[d.getDay()]}</div>
-              <div className="flex items-center justify-center mt-1">
-                {isT ? (
-                  <span className="vm-day-today text-base w-7 h-7">{d.getDate()}</span>
-                ) : (
-                  <span className="text-base font-medium text-foreground">{d.getDate()}</span>
-                )}
-              </div>
-            </div>
-          )
-        })}
-
-        {/* Day cells — same renderDayCell as month view */}
-        {weekDays.map((d, i) => {
-          const dayKey = getDateKey(d)
-          return (
-            <div
-              key={dayKey}
-              className={cn("border-t border-border", i > 0 && "border-l border-border")}
-            >
-              {renderDayCell(dayKey, "", true)}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // ── vista por día (pantalla grande / TV) ───────────────────────────────────
-
-  /* ── helpers para vista de día tipo Google Calendar ── */
+  // ── helpers de horario tipo Google Calendar (usados en Día, Semana y 2 Semanas) ──
 
   function parseTimeToDecimal(timeStr: string): number {
     const [h, m] = timeStr.split(":").map(Number)
@@ -1042,36 +894,369 @@ function ReservationsContent() {
     return result
   }
 
-  const renderDayView = () => {
-    const dayKey = getDateKey(currentDate)
+  // Rango de horas compartido: 7:00 a 25:00 (1:00 AM del día siguiente) = 18 horas
+  const TIMELINE_START = 7
+  const TIMELINE_END = 25
+  const TIMELINE_HOURS = TIMELINE_END - TIMELINE_START
+
+  // ── columna-timeline de un día (usada en Día, Semana y 2 Semanas) ───────────
+
+  // Posición vertical en % del alto del timeline (7:00 = 0%, 1:00 del día sig. = 100%)
+  const timelinePct = (hour: number) => ((hour - TIMELINE_START) / TIMELINE_HOURS) * 100
+
+  const renderTimelineDayColumn = (dayKey: string) => {
     const dayRes = getResForDay(dayKey)
-
-    // Rango de horas: 7:00 a 25:00 (1:00 AM) = 18 horas
-    const DAY_START = 7
-    const DAY_END = 25
-    const HOUR_HEIGHT = 64 // px por hora
-    const TOTAL_HOURS = DAY_END - DAY_START
-    const TIMELINE_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT
-
-    // Preparar eventos con tiempos
     const events = dayRes.map((res) => {
       const range = getEventTimeRange(res)
       return {
         id: res.id,
         res,
-        start: Math.max(range.start, DAY_START),
-        end: Math.min(range.end, DAY_END),
+        start: Math.max(range.start, TIMELINE_START),
+        end: Math.min(range.end, TIMELINE_END),
       }
     })
-
-    // Calcular columnas para solapamientos
     const overlapGroups = computeOverlapGroups(events)
+    const isToday = dayKey === today
+
+    return (
+      <div className="flex-1 relative min-w-0">
+        {/* Franjas Mañana / Tarde / Noche */}
+        {SCHEDULE_BANDS.map(b => {
+          const bandStart = Math.max(b.start, TIMELINE_START)
+          const bandEnd = Math.min(b.end, TIMELINE_END)
+          if (bandEnd <= bandStart) return null
+          return (
+            <div
+              key={b.key}
+              className="absolute left-0 right-0 border-t border-border pointer-events-none"
+              style={{ top: `${timelinePct(bandStart)}%`, height: `${timelinePct(bandEnd) - timelinePct(bandStart)}%`, backgroundColor: b.bg }}
+            />
+          )
+        })}
+
+        {/* Líneas de hora */}
+        {Array.from({ length: TIMELINE_HOURS + 1 }, (_, i) => (
+          <div
+            key={i}
+            className="absolute left-0 right-0 border-t border-border/60"
+            style={{ top: `${(i / TIMELINE_HOURS) * 100}%` }}
+          />
+        ))}
+
+        {/* Línea de hora actual */}
+        {isToday && (() => {
+          const now = new Date()
+          const currentHour = now.getHours() + now.getMinutes() / 60
+          if (currentHour >= TIMELINE_START && currentHour <= TIMELINE_END) {
+            return (
+              <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${timelinePct(currentHour)}%` }}>
+                <div className="flex items-center">
+                  <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                  <div className="flex-1 border-t border-red-500 border-dashed" />
+                </div>
+              </div>
+            )
+          }
+          return null
+        })()}
+
+        {/* Eventos */}
+        {events.map((ev) => {
+          const top = timelinePct(ev.start)
+          const height = Math.max(timelinePct(ev.end) - timelinePct(ev.start), 3)
+          const overlap = overlapGroups.get(ev.id) ?? { col: 0, totalCols: 1 }
+          const widthPct = 100 / overlap.totalCols
+          const leftPct = overlap.col * widthPct
+
+          const statusColor = quoteStatusColors[ev.res.status] || getStatusColor(ev.res.status)
+          const time = ev.res.spaces?.[0]?.startTime
+            ? `${ev.res.spaces[0].startTime} – ${ev.res.spaces[ev.res.spaces.length - 1].endTime}`
+            : `${SCHEDULE_LABELS[ev.res.startSchedule as Schedule]} – ${SCHEDULE_LABELS[ev.res.endSchedule as Schedule]}`
+
+          return (
+            <div
+              key={ev.id}
+              className="absolute cursor-pointer rounded-md overflow-hidden border-l-[3px] transition-all duration-150 hover:shadow-md hover:z-20"
+              style={{
+                top: `${top}%`,
+                height: `${height}%`,
+                left: `calc(${leftPct}% + 2px)`,
+                width: `calc(${widthPct}% - 4px)`,
+                backgroundColor: `${statusColor}18`,
+                borderLeftColor: statusColor,
+                boxShadow: `0 1px 3px ${statusColor}30`,
+              }}
+              onClick={(e) => { e.stopPropagation(); setSelectedReservation(ev.res) }}
+              onMouseEnter={(e) => showHoverCard(e, ev.res)}
+              onMouseLeave={() => setHoverCard(null)}
+            >
+              {/* Contenido agrupado arriba — nombre, título, horario y precio juntos */}
+              <div className="px-1.5 py-1 flex flex-col leading-tight gap-0.5 overflow-hidden">
+                <div className="text-[11px] font-bold text-foreground truncate">
+                  {ev.res.client.name}
+                </div>
+                {ev.res.eventTitle && (
+                  <div className="text-[10px] text-foreground/70 italic truncate">{ev.res.eventTitle}</div>
+                )}
+                <div className="text-[10px] text-muted-foreground truncate">{time}</div>
+                <div className="text-[10px] font-mono font-semibold text-foreground/90 truncate">
+                  {formatCurrency(ev.res.totalAmount)}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // ── barra de tercios (Mañana/Tarde/Noche) — usada en Semana y 2 Semanas ─────
+  // Cada evento ocupa su propia fila; dentro de la fila, la barra de color
+  // arranca en el tercio de su horario de inicio y termina en el de su fin.
+
+  const renderThirdsRow = (res: Reservation, rowHeight: number, fontSizeClass: string) => {
+    const color = quoteStatusColors[res.status] || getStatusColor(res.status)
+    const si = Math.max(SCHEDULE_ORDER.indexOf(res.startSchedule as Schedule), 0)
+    const ei = Math.max(SCHEDULE_ORDER.indexOf(res.endSchedule as Schedule), 0)
+    const left  = `${(si / 3) * 100}%`
+    const right = `${((2 - ei) / 3) * 100}%`
+
+    return (
+      <div
+        key={res.id}
+        className="relative cursor-pointer"
+        style={{ height: rowHeight }}
+        onClick={(e) => { e.stopPropagation(); setSelectedReservation(res) }}
+        onMouseEnter={(e) => showHoverCard(e, res)}
+        onMouseLeave={() => setHoverCard(null)}
+      >
+        {/* Guías de tercios */}
+        <div className="absolute inset-0 flex pointer-events-none" aria-hidden="true">
+          <div className="flex-1 border-r border-border/30" />
+          <div className="flex-1 border-r border-border/30" />
+          <div className="flex-1" />
+        </div>
+        {/* Barra */}
+        <div
+          className="absolute top-0 bottom-0 rounded-sm border-l-[3px] overflow-hidden flex items-center transition-all duration-150 hover:shadow-md hover:z-10"
+          style={{ left, right, backgroundColor: `${color}22`, borderLeftColor: color }}
+        >
+          <span className={cn("font-bold text-foreground truncate px-2 leading-none", fontSizeClass)}>
+            {res.client.name}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  // ── celda de día: lista de filas de tercios, scrollable si hay muchos eventos ──
+
+  const renderGridDayCell = (dayKey: string, rowHeight: number, fontSizeClass: string) => {
+    const dayRes = [...getResForDay(dayKey)].sort((a, b) =>
+      (a.spaces?.[0]?.startTime || "").localeCompare(b.spaces?.[0]?.startTime || "")
+    )
+    return (
+      <div className="p-1 h-full flex flex-col">
+        <div className="overflow-y-auto space-y-0.5 pr-0.5 flex-1 min-h-0">
+          {dayRes.length === 0 ? (
+            <div
+              className="h-full min-h-[40px] flex items-center justify-center text-sm text-muted-foreground/50 cursor-pointer"
+              onClick={() => (window.location.href = "/quotes?new=true")}
+            >
+              Libre
+            </div>
+          ) : (
+            dayRes.map(res => renderThirdsRow(res, rowHeight, fontSizeClass))
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── celda de día con chips agrupados por franja (Mañana/Tarde/Noche) — 2 Semanas ──
+
+  const firstName = (name: string) => name.replace(/\s*\(Demo\)\s*$/i, "").trim().split(" ")[0]
+
+  const MAX_CHIPS_PER_FRANJA = 6
+
+  const renderFranjaChipCell = (dayKey: string) => {
+    const dayRes = [...getResForDay(dayKey)].sort((a, b) =>
+      (a.spaces?.[0]?.startTime || "").localeCompare(b.spaces?.[0]?.startTime || "")
+    )
+
+    // Un evento aparece en cada franja que ocupa (de su inicio a su fin)
+    const byFranja: Reservation[][] = [[], [], []]
+    for (const res of dayRes) {
+      const si = Math.max(SCHEDULE_ORDER.indexOf(res.startSchedule as Schedule), 0)
+      const ei = Math.max(SCHEDULE_ORDER.indexOf(res.endSchedule as Schedule), 0)
+      for (let f = si; f <= ei; f++) byFranja[f].push(res)
+    }
 
     return (
       <div className="flex flex-col h-full">
+        {SCHEDULE_BANDS.map((band, f) => {
+          const items = byFranja[f]
+          const visible = items.slice(0, MAX_CHIPS_PER_FRANJA)
+          const overflow = items.length - visible.length
+          return (
+            <div
+              key={band.key}
+              className={cn("flex items-start gap-1 px-1.5 py-1.5 overflow-hidden flex-1", f > 0 && "border-t border-border/40")}
+              style={{ backgroundColor: band.bg, minHeight: 44 }}
+            >
+              <span className="text-[9px] font-bold text-muted-foreground/60 uppercase w-5 shrink-0 pt-0.5">
+                {SCHEDULE_SHORT[band.key]}
+              </span>
+              <div className="flex flex-wrap gap-1 flex-1 min-w-0 content-start">
+                {visible.map(res => {
+                  const color = quoteStatusColors[res.status] || getStatusColor(res.status)
+                  return (
+                    <button
+                      key={res.id}
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-full pl-1 pr-1.5 py-0.5 max-w-[88px] cursor-pointer transition-transform hover:scale-105"
+                      style={{ backgroundColor: `${color}22` }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedReservation(res) }}
+                      onMouseEnter={(e) => showHoverCard(e, res)}
+                      onMouseLeave={() => setHoverCard(null)}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-[10px] font-medium text-foreground truncate leading-none">
+                        {firstName(res.client.name)}
+                      </span>
+                    </button>
+                  )
+                })}
+                {overflow > 0 && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded-full px-1.5 py-0.5 bg-muted text-[10px] font-semibold text-muted-foreground cursor-pointer hover:bg-muted-foreground/20"
+                    onClick={(e) => { e.stopPropagation(); setCurrentDate(parseDate(dayKey)); setGranularity("day") }}
+                    title="Ver todos los eventos del día"
+                  >
+                    +{overflow}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // ── fila de semana: encabezados de día + celdas — reusada por Semana y 2 Semanas ──
+
+  // ── vista semanal: barras por tercios, se estira para llenar la pantalla ─────
+
+  const renderWeekView = () => {
+    const weekDays = getWeekDays(currentDate)
+    return (
+      <div
+        className="flex flex-col border border-border rounded-xl overflow-hidden"
+        style={{ height: "max(560px, calc(100vh - 300px))" }}
+      >
+        {/* Encabezados de día */}
+        <div className="grid grid-cols-7 shrink-0">
+          {weekDays.map((d, i) => {
+            const isT = getDateKey(d) === today
+            return (
+              <div key={`wk-h-${i}`} className={cn("pt-2 text-center border-b border-border", isT ? "bg-primary/10" : "bg-muted/50", i > 0 && "border-l border-border")}>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{dayNames[d.getDay()]}</div>
+                <div className="flex items-center justify-center mt-0.5">
+                  {isT ? (
+                    <span className="vm-day-today text-lg w-8 h-8">{d.getDate()}</span>
+                  ) : (
+                    <span className="text-lg font-medium text-foreground">{d.getDate()}</span>
+                  )}
+                </div>
+                {/* Leyenda Mañana / Tarde / Noche alineada con los tercios */}
+                <div className="grid grid-cols-3 mt-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 border-t border-border/60">
+                  <span className="py-0.5 border-r border-border/40">M</span>
+                  <span className="py-0.5 border-r border-border/40">T</span>
+                  <span className="py-0.5">N</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {/* Celdas — se estiran para llenar el alto disponible */}
+        <div className="grid grid-cols-7 flex-1 min-h-0">
+          {weekDays.map((d, i) => {
+            const dayKey = getDateKey(d)
+            const isT = dayKey === today
+            return (
+              <div key={`wk-c-${i}`} className={cn("border-t border-border min-h-0", isT && "bg-primary/[0.03]", i > 0 && "border-l border-border")}>
+                {renderGridDayCell(dayKey, 22, "text-xs")}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ── vista de 2 semanas: chips por franja, se estira para llenar la pantalla ──
+
+  const renderChipWeekSection = (weekDays: Date[], keyPrefix: string, topSeparator: boolean) => (
+    <div key={keyPrefix} className={cn("flex flex-col flex-1 min-h-0", topSeparator && "border-t-2 border-t-border")}>
+      {/* Encabezados de día */}
+      <div className="grid grid-cols-7 shrink-0">
+        {weekDays.map((d, i) => {
+          const isT = getDateKey(d) === today
+          return (
+            <div key={`${keyPrefix}-h-${i}`} className={cn("py-2.5 text-center border-b border-border", isT ? "bg-primary/10" : "bg-muted/50", i > 0 && "border-l border-border")}>
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{dayNames[d.getDay()]}</div>
+              <div className="flex items-center justify-center mt-0.5">
+                {isT ? (
+                  <span className="vm-day-today text-base w-7 h-7">{d.getDate()}</span>
+                ) : (
+                  <span className="text-base font-medium text-foreground">{d.getDate()}</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {/* Celdas — se estiran para repartir el alto disponible */}
+      <div className="grid grid-cols-7 flex-1 min-h-0">
+        {weekDays.map((d, i) => {
+          const dayKey = getDateKey(d)
+          const isT = dayKey === today
+          return (
+            <div key={`${keyPrefix}-c-${i}`} className={cn("border-t border-border min-h-0", isT && "bg-primary/[0.03]", i > 0 && "border-l border-border")}>
+              {renderFranjaChipCell(dayKey)}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const renderBiweekView = () => {
+    const allDays = getBiweekDays(currentDate)
+    return (
+      <div
+        className="flex flex-col border border-border rounded-xl overflow-hidden"
+        style={{ height: "max(560px, calc(100vh - 300px))" }}
+      >
+        {renderChipWeekSection(allDays.slice(0, 7), "w1", false)}
+        {renderChipWeekSection(allDays.slice(7, 14), "w2", true)}
+      </div>
+    )
+  }
+
+  // ── vista por día ────────────────────────────────────────────────────────────
+
+  const renderDayView = () => {
+    const dayKey = getDateKey(currentDate)
+    const dayCount = getResForDay(dayKey).length
+
+    return (
+      <div className="flex flex-col overflow-hidden" style={{ height: "max(560px, calc(100vh - 300px))" }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+          <h2 className="text-lg font-semibold text-foreground capitalize">
             {currentDate.toLocaleDateString("es-GT", {
               weekday: "long",
               day: "numeric",
@@ -1080,12 +1265,12 @@ function ReservationsContent() {
             })}
           </h2>
           <span className="text-sm text-muted-foreground">
-            {events.length} evento{events.length !== 1 ? "s" : ""}
+            {dayCount} evento{dayCount !== 1 ? "s" : ""}
           </span>
         </div>
 
-        {events.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+        {dayCount === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
             <CalendarDays className="w-12 h-12 mb-3 opacity-30" />
             <p className="text-lg">Sin eventos para este día</p>
             <Button
@@ -1097,139 +1282,29 @@ function ReservationsContent() {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-1 overflow-auto">
+          <div className="flex flex-1 min-h-0">
             {/* Columna de horas */}
-            <div
-              className="flex-shrink-0 border-r border-border bg-muted/30"
-              style={{ width: 64, height: TIMELINE_HEIGHT + 24 }}
-            >
-              {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => {
-                const hour = DAY_START + i
+            <div className="relative flex-shrink-0 border-r border-border bg-muted/30" style={{ width: 56 }}>
+              {Array.from({ length: TIMELINE_HOURS + 1 }, (_, i) => {
+                const hour = TIMELINE_START + i
                 const displayHour = hour >= 24 ? hour - 24 : hour
                 const ampm = hour < 12 || hour >= 24 ? "a.m." : "p.m."
                 return (
-                  <div
+                  <span
                     key={hour}
-                    className="text-xs text-muted-foreground text-right pr-2 relative"
+                    className="absolute right-1.5 text-[10px] text-muted-foreground"
                     style={{
-                      height: HOUR_HEIGHT,
-                      lineHeight: "14px",
-                      marginTop: i === 0 ? 24 : 0,
+                      top: `${(i / TIMELINE_HOURS) * 100}%`,
+                      transform: i === 0 ? "none" : i === TIMELINE_HOURS ? "translateY(-100%)" : "translateY(-50%)",
                     }}
                   >
-                    <span className="absolute right-2 -top-2">
-                      {displayHour === 0 ? 12 : displayHour > 12 ? displayHour - 12 : displayHour}{" "}
-                      {ampm}
-                    </span>
-                  </div>
+                    {displayHour === 0 ? 12 : displayHour > 12 ? displayHour - 12 : displayHour} {ampm}
+                  </span>
                 )
               })}
             </div>
 
-            {/* Área de eventos */}
-            <div className="flex-1 relative" style={{ height: TIMELINE_HEIGHT + 24, minWidth: 300 }}>
-              {/* Líneas de hora */}
-              {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
-                <div
-                  key={i}
-                  className="absolute left-0 right-0 border-t border-border/60"
-                  style={{ top: i * HOUR_HEIGHT + 24 }}
-                />
-              ))}
-
-              {/* Línea de hora actual */}
-              {(() => {
-                const now = new Date()
-                const currentHour = now.getHours() + now.getMinutes() / 60
-                if (currentHour >= DAY_START && currentHour <= DAY_END) {
-                  const currentTop = (currentHour - DAY_START) * HOUR_HEIGHT + 24
-                  return (
-                    <div
-                      className="absolute left-0 right-0 z-10 pointer-events-none"
-                      style={{ top: currentTop }}
-                    >
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
-                        <div className="flex-1 border-t border-red-500 border-dashed" />
-                      </div>
-                    </div>
-                  )
-                }
-                return null
-              })()}
-
-              {/* Eventos */}
-              {events.map((ev) => {
-                const top = (ev.start - DAY_START) * HOUR_HEIGHT + 24
-                const height = Math.max((ev.end - ev.start) * HOUR_HEIGHT - 2, 28)
-                const overlap = overlapGroups.get(ev.id) ?? { col: 0, totalCols: 1 }
-                const widthPct = 100 / overlap.totalCols
-                const leftPct = overlap.col * widthPct
-
-                const statusColor = quoteStatusColors[ev.res.status] || "#9ca3af"
-                const statusLabel = quoteStatusLabels[ev.res.status] || ev.res.status
-                const clientName = ev.res.client.name
-                const shortName =
-                  clientName.length > 20 ? clientName.slice(0, 18) + "…" : clientName
-
-                return (
-                  <div
-                    key={ev.id}
-                    className="absolute cursor-pointer transition-all duration-200 rounded-lg overflow-hidden border-l-[4px] hover:shadow-md hover:scale-[1.02]"
-                    style={{
-                      top,
-                      height,
-                      left: `calc(${leftPct}% + 2px)`,
-                      width: `calc(${widthPct}% - 4px)`,
-                      backgroundColor: `${statusColor}18`,
-                      borderLeftColor: statusColor,
-                      boxShadow: `0 1px 3px ${statusColor}30`,
-                    }}
-                    onClick={() => router.push(`/quotes?id=${ev.res.id}`)}
-                    title={`${clientName} — ${statusLabel}\n${ev.res.locationName}\n${formatCurrency(
-                      ev.res.totalAmount
-                    )}`}
-                  >
-                    <div className="px-2 py-1 h-full flex flex-col">
-                      {/* Título: nombre del cliente */}
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-2 ring-white"
-                          style={{ backgroundColor: statusColor }}
-                        />
-                        <span className="text-xs font-bold text-foreground truncate leading-tight">
-                          {shortName}
-                        </span>
-                      </div>
-
-                      {/* Info secundaria: horario + ubicación */}
-                      {height > 36 && (
-                        <div className="mt-1 space-y-0.5">
-                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-                            <Clock className="w-2.5 h-2.5 flex-shrink-0" />
-                            <span className="truncate">
-                              {SCHEDULE_LABELS[ev.res.startSchedule as Schedule]} —{" "}
-                              {SCHEDULE_LABELS[ev.res.endSchedule as Schedule]}
-                            </span>
-                          </div>
-                          {height > 52 && (
-                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-                              <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
-                              <span className="truncate">{ev.res.locationName}</span>
-                            </div>
-                          )}
-                          {height > 72 && (
-                            <div className="text-[10px] font-mono font-semibold text-foreground/90 truncate">
-                              {formatCurrency(ev.res.totalAmount)}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            {renderTimelineDayColumn(dayKey)}
           </div>
         )}
       </div>
@@ -1266,14 +1341,13 @@ function ReservationsContent() {
         return s <= weekEnd && e >= weekStart
       })
     } else {
-      const y = currentDate.getFullYear()
-      const m = currentDate.getMonth()
-      const monthStart = getDateKey(new Date(y, m, 1))
-      const monthEnd   = getDateKey(new Date(y, m + 1, 0))
+      const biweekDays = getBiweekDays(currentDate)
+      const biweekStart = getDateKey(biweekDays[0])
+      const biweekEnd   = getDateKey(biweekDays[13])
       filtered = reservations.filter(r => {
         const s = getDateKey(parseDate(r.startDate))
         const e = getDateKey(parseDate(r.endDate))
-        return s <= monthEnd && e >= monthStart
+        return s <= biweekEnd && e >= biweekStart
       })
     }
 
@@ -1343,15 +1417,12 @@ function ReservationsContent() {
   // ── título del período ─────────────────────────────────────────────────────
 
   const getPeriodTitle = () => {
-    if (granularity === "month") {
-      return `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
-    }
     if (granularity === "day") {
       return currentDate.toLocaleDateString("es-GT", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     }
-    const week = getWeekDays(currentDate)
-    const first = week[0]
-    const last  = week[6]
+    const range = granularity === "biweek" ? getBiweekDays(currentDate) : getWeekDays(currentDate)
+    const first = range[0]
+    const last  = range[range.length - 1]
     const sameMonth = first.getMonth() === last.getMonth()
     if (sameMonth) {
       return `${first.getDate()} – ${last.getDate()} de ${monthNames[first.getMonth()]} ${first.getFullYear()}`
@@ -1405,6 +1476,9 @@ function ReservationsContent() {
             <Button variant="ghost" size="icon" onClick={nextPeriod} data-testid="next-period" className="h-8 w-8 rounded-lg shrink-0">
               <ChevronRight className="w-4 h-4" />
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} data-testid="today-button" className="h-8 rounded-lg shrink-0 ml-1">
+              Hoy
+            </Button>
           </div>
 
           {/* View switcher */}
@@ -1424,9 +1498,9 @@ function ReservationsContent() {
                 </button>
               ))}
             </div>
-            {/* Mes / Semana / Día */}
+            {/* 2 Semanas / Semana / Día */}
             <div className="flex rounded-lg overflow-hidden border border-border">
-              {(["month", "week", "day"] as const).map(g => (
+              {(["biweek", "week", "day"] as const).map(g => (
                 <button
                   key={g}
                   className={cn(
@@ -1435,7 +1509,7 @@ function ReservationsContent() {
                   )}
                   onClick={() => setGranularity(g)}
                 >
-                  {g === "month" ? "Mes" : g === "week" ? "Semana" : "Día"}
+                  {g === "biweek" ? "2 Semanas" : g === "week" ? "Semana" : "Día"}
                 </button>
               ))}
             </div>
@@ -1458,10 +1532,10 @@ function ReservationsContent() {
               <div className={cn("w-full", displayMode !== "list" && "hidden")}>
                 {renderListView()}
               </div>
-              <div className={cn("w-full p-4", !(displayMode === "calendar" && granularity === "month") && "hidden")} style={{ minHeight: 520 }}>
-                {renderMonthView()}
+              <div className={cn("w-full p-4", !(displayMode === "calendar" && granularity === "biweek") && "hidden")}>
+                {renderBiweekView()}
               </div>
-              <div className={cn("w-full p-4", !(displayMode === "calendar" && granularity === "week") && "hidden")} style={{ minHeight: 520 }}>
+              <div className={cn("w-full p-4", !(displayMode === "calendar" && granularity === "week") && "hidden")}>
                 {renderWeekView()}
               </div>
               <div className={cn("w-full", !(displayMode === "calendar" && granularity === "day") && "hidden")}>
@@ -1731,6 +1805,54 @@ function ReservationsContent() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Hover card: detalle rápido al pasar el mouse sobre un evento ────── */}
+      {hoverCard && (
+        <div
+          className="fixed z-[100] w-64 rounded-lg border border-border bg-popover shadow-xl p-3 text-xs space-y-1.5 pointer-events-none"
+          style={{ left: hoverCard.x, top: hoverCard.y, transform: hoverCard.above ? "translateY(-100%)" : undefined }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold text-sm text-foreground truncate">{hoverCard.res.client.name}</span>
+            <span
+              className="vm-status-badge text-[9px] shrink-0"
+              style={{ backgroundColor: quoteStatusColors[hoverCard.res.status] || getStatusColor(hoverCard.res.status), color: "#fff" }}
+            >
+              {quoteStatusLabels[hoverCard.res.status] || getStatusLabel(hoverCard.res.status)}
+            </span>
+          </div>
+          {hoverCard.res.eventTitle && (
+            <p className="text-primary font-medium">{hoverCard.res.eventTitle}</p>
+          )}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1.5 border-t border-border text-foreground/90">
+            <div>
+              <span className="text-muted-foreground">Horario: </span>
+              {hoverCard.res.spaces?.[0]?.startTime
+                ? `${hoverCard.res.spaces[0].startTime} – ${hoverCard.res.spaces[hoverCard.res.spaces.length - 1].endTime}`
+                : `${SCHEDULE_LABELS[hoverCard.res.startSchedule as Schedule]} – ${SCHEDULE_LABELS[hoverCard.res.endSchedule as Schedule]}`}
+            </div>
+            <div className="truncate">
+              <span className="text-muted-foreground">Salón: </span>
+              {hoverCard.res.locationName}
+            </div>
+            {hoverCard.res.parkingSpot && (
+              <div>
+                <span className="text-muted-foreground">Parqueo: </span>
+                {formatParkingSpots(hoverCard.res.parkingSpot)}
+              </div>
+            )}
+            {hoverCard.res.guestCount && (
+              <div>
+                <span className="text-muted-foreground">Personas: </span>
+                {hoverCard.res.guestCount}
+              </div>
+            )}
+          </div>
+          <div className="pt-1.5 border-t border-border font-mono font-semibold text-foreground">
+            {formatCurrency(hoverCard.res.totalAmount)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

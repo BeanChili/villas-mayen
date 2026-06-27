@@ -53,9 +53,9 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-20 h-20 flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Casa Villas Magen" className="w-full h-full object-contain" />
+            <img src="/logo.png" alt="Casa Villas Mayen" className="w-full h-full object-contain" />
           </div>
-          <CardTitle className="text-2xl">Casa Villas Magen</CardTitle>
+          <CardTitle className="text-2xl">Casa Villas Mayen</CardTitle>
           <CardDescription>
             Ingresa tus credenciales para acceder al sistema
           </CardDescription>

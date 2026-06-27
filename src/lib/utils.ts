@@ -201,7 +201,7 @@ export function formatCurrencyByCode(amount: number, currency: string): string {
 
 const PARKING_OPTION_LABELS: Record<string, string> = {
   Predio: "Predio",
-  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [String(i + 1), `Grupo ${i + 1}`])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [String(i + 1), `Parqueo ${i + 1}`])),
 }
 
 export function formatParkingSpots(value?: string): string {
@@ -224,10 +224,11 @@ export function calculateExpiryDate(sentDate: Date, validityDays: number = 15): 
 }
 
 export function getScheduleFromTime(time: string): string | null {
-  const [h] = time.split(':').map(Number)
-  if (h >= 7 && h < 13) return 'MANANA'
-  if (h >= 14 && h < 19) return 'TARDE'
-  if (h >= 20 || h < 1) return 'NOCHE'
+  const [h, m] = time.split(':').map(Number)
+  const decimal = h + (m || 0) / 60
+  if (decimal >= 7 && decimal <= 13) return 'MANANA'
+  if (decimal >= 14 && decimal <= 19) return 'TARDE'
+  if (decimal >= 20 || decimal <= 1) return 'NOCHE'
   return null
 }
 
