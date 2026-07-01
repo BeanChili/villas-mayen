@@ -151,6 +151,13 @@ function QuotesContent() {
   const [furnitureDialogOpen, setFurnitureDialogOpen] = useState(false)
   const [selectedFurnitureItem, setSelectedFurnitureItem] = useState<FurnitureItem | null>(null)
   const [furnitureDailyQuantities, setFurnitureDailyQuantities] = useState<Array<{ date: string; quantity: number }>>([])
+  // Registro de pagos desde el detalle de la cotización
+  const [payAmount, setPayAmount] = useState("")
+  const [payType, setPayType] = useState("EFECTIVO")
+  const [payRef, setPayRef] = useState("")
+  const [payNotes, setPayNotes] = useState("")
+  const [savingPay, setSavingPay] = useState(false)
+  const [payError, setPayError] = useState("")
   const [menuFormData, setMenuFormData] = useState({
     scheduledDate: "",
     startTime: "",
@@ -782,6 +789,42 @@ function QuotesContent() {
     }
   }
 
+  const registerPayment = async () => {
+    if (!selectedQuote) return
+    const amount = Math.round((parseFloat(payAmount) || 0) * 100) / 100
+    const pending = (selectedQuote.totalAmount || 0) - (selectedQuote.paidAmount || 0)
+    if (isNaN(amount) || amount <= 0) { setPayError("Ingresá un monto válido mayor a 0"); return }
+    if (amount > pending + 0.01) { setPayError(`El monto no puede superar el pendiente (${formatCurrencyByCode(pending, selectedQuote.currency)})`); return }
+    setPayError("")
+    setSavingPay(true)
+    try {
+      const res = await fetch(`/api/quotes/${selectedQuote.id}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, paymentType: payType, referenceNumber: payRef || undefined, notes: payNotes || undefined }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const u = data.data || data
+        setSelectedQuote({
+          ...selectedQuote,
+          paidAmount: u.paidAmount,
+          pendingAmount: u.pendingAmount,
+          paymentStatus: u.paymentStatus,
+          payments: u.payments ?? selectedQuote.payments,
+        })
+        setPayAmount(""); setPayRef(""); setPayNotes("")
+        fetchData()
+      } else {
+        setPayError(data.error || "Error al registrar el pago")
+      }
+    } catch {
+      setPayError("Error de conexión")
+    } finally {
+      setSavingPay(false)
+    }
+  }
+
   const downloadPDF = async (quote: Quote) => {
     try {
       const { pdf } = await import("@react-pdf/renderer")
@@ -1398,7 +1441,7 @@ function QuotesContent() {
 
       {/* ── Dialog: Detalle de Cotización ─────────────────────────────────────── */}
       {selectedQuote && (
-        <Dialog open={!!selectedQuote} onOpenChange={open => { if (!open) setSelectedQuote(null) }}>
+        <Dialog open={!!selectedQuote} onOpenChange={open => { if (!open) { setSelectedQuote(null); setPayAmount(""); setPayRef(""); setPayNotes(""); setPayError("") } }}>
           <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-display text-xl">Detalle de Cotización</DialogTitle>
@@ -1558,28 +1601,82 @@ function QuotesContent() {
                 </div>
               )}
 
-              {/* Resumen de pagos */}
-              {selectedQuote.payments && selectedQuote.payments.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pagos Recibidos</p>
-                  <div className="space-y-1.5">
-                    {selectedQuote.payments.map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20 text-xs">
-                        <span className="text-muted-foreground">{new Date(p.createdAt).toLocaleDateString("es-GT")}</span>
-                        <span className="font-mono font-medium">{formatCurrencyByCode(p.amount, selectedQuote.currency)}</span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-medium">Pagado:</span>
-                      <span className="text-xs font-mono font-semibold">{formatCurrencyByCode(selectedQuote.paidAmount || 0, selectedQuote.currency)}</span>
-                    </div>
+              {/* Pagos — resumen, historial y registro */}
+              {(["CONFIRMADA", "EN_EJECUCION", "FINALIZADA"].includes(selectedQuote.status) || (selectedQuote.payments?.length ?? 0) > 0) && (() => {
+                const total = selectedQuote.totalAmount || 0
+                const paid = selectedQuote.paidAmount || 0
+                const pending = Math.max(0, total - paid)
+                const pct = total > 0 ? Math.min((paid / total) * 100, 100) : 0
+                const canPay = pending > 0.01 && ["CONFIRMADA", "EN_EJECUCION"].includes(selectedQuote.status)
+                return (
+                  <div className="rounded-xl border border-border p-4 space-y-3 bg-card">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium">Pendiente:</span>
-                      <span className="text-xs font-mono font-semibold">{formatCurrencyByCode(selectedQuote.pendingAmount || 0, selectedQuote.currency)}</span>
+                      <span className="text-sm font-semibold text-muted-foreground">Pagos</span>
+                      <span className={cn("text-xl font-display", pct >= 100 ? "text-vm-sage" : "text-foreground")}>{pct.toFixed(0)}%</span>
                     </div>
+                    <div className="vm-progress">
+                      <div className={cn("vm-progress-fill", pct >= 100 ? "bg-vm-sage" : "bg-primary")} style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</p>
+                        <p className="text-sm font-mono font-medium text-foreground mt-0.5">{formatCurrencyByCode(total, selectedQuote.currency)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pagado</p>
+                        <p className="text-sm font-mono font-medium text-vm-sage mt-0.5">{formatCurrencyByCode(paid, selectedQuote.currency)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pendiente</p>
+                        <p className="text-sm font-mono font-medium text-vm-sienna mt-0.5">{formatCurrencyByCode(pending, selectedQuote.currency)}</p>
+                      </div>
+                    </div>
+
+                    {selectedQuote.payments && selectedQuote.payments.length > 0 && (
+                      <div className="pt-2 border-t border-border space-y-1.5 max-h-36 overflow-y-auto">
+                        {selectedQuote.payments.map(p => (
+                          <div key={p.id} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-semibold text-vm-sage">{formatCurrencyByCode(p.amount, selectedQuote.currency)}</span>
+                              {(p as any).paymentType && <span className="text-[10px] text-muted-foreground uppercase">{(p as any).paymentType}</span>}
+                              {(p as any).referenceNumber && <span className="text-[10px] text-muted-foreground">Ref: {(p as any).referenceNumber}</span>}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">{new Date(p.createdAt).toLocaleDateString("es-GT", { day: "numeric", month: "short" })}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {canPay && (
+                      <div className="pt-3 border-t border-border space-y-2">
+                        <div className="flex gap-2">
+                          <Input type="number" placeholder="Monto" value={payAmount} min={0} max={pending}
+                            onChange={e => { setPayAmount(e.target.value); setPayError("") }} className="flex-1 font-mono h-9" />
+                          <Button size="sm" className="px-5" disabled={savingPay || !payAmount} onClick={registerPayment}>
+                            {savingPay ? <Loader2 className="w-4 h-4 animate-spin" /> : "Registrar pago"}
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <select value={payType} onChange={e => setPayType(e.target.value)}
+                            className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm">
+                            <option value="EFECTIVO">Efectivo</option>
+                            <option value="DEPOSITO">Depósito</option>
+                            <option value="TRANSFERENCIA">Transferencia</option>
+                            <option value="CHEQUE">Cheque</option>
+                            <option value="TARJETA">Tarjeta</option>
+                          </select>
+                          <Input placeholder="N° Referencia (opcional)" value={payRef} onChange={e => setPayRef(e.target.value)} className="flex-1 h-9" />
+                        </div>
+                        <Input placeholder="Notas (opcional)" value={payNotes} onChange={e => setPayNotes(e.target.value)} className="h-9 text-sm" />
+                        {payError && <p className="text-xs text-destructive">{payError}</p>}
+                      </div>
+                    )}
+                    {!canPay && pending <= 0.01 && (
+                      <p className="text-xs text-vm-sage font-medium pt-1">✓ Cotización pagada por completo</p>
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Acciones de estado */}
               <div className="flex gap-2 flex-wrap pt-1">

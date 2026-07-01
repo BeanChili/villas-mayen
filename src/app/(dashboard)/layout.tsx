@@ -128,9 +128,9 @@ export default function DashboardLayout({
         <div className={cn("flex items-center h-16 border-b border-border shrink-0", collapsed ? "lg:justify-center lg:px-0 px-6 justify-between" : "px-6 justify-between")}>
           <Link href="/" className="flex items-center gap-2.5 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Casa Villas Mayen" width={32} height={32} className="rounded-md object-contain shrink-0" />
+            <img src="/logo.png" alt="Casa Villas Magen" width={32} height={32} className="rounded-md object-contain shrink-0" />
             <span className={cn("font-display text-lg text-foreground tracking-tight truncate", collapsed && "lg:hidden")}>
-              Casa Villas Mayen
+              Casa Villas Magen
             </span>
           </Link>
           <button

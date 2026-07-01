@@ -53,7 +53,7 @@ export async function sendClosingEmail(quoteId: string, to: string): Promise<{ s
 
     // Build email HTML summary
     const html = `
-      <h2>Resumen de Liquidación - Villas Mayen</h2>
+      <h2>Resumen de Liquidación - Villas Magen</h2>
       <p><strong>Cliente:</strong> ${emailData.clientName}</p>
       <p><strong>Fecha del evento:</strong> ${new Date(emailData.eventDate).toLocaleDateString("es-GT")}</p>
       <hr/>
@@ -69,7 +69,7 @@ export async function sendClosingEmail(quoteId: string, to: string): Promise<{ s
 
     // When Resend is available, uncomment below:
     // await resend.emails.send({
-    //   from: "Villas Mayen <no-reply@villasmayen.com>",
+    //   from: "Villas Magen <no-reply@villasmagen.com>",
     //   to,
     //   subject,
     //   html,

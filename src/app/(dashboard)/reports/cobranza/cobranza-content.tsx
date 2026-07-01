@@ -1,12 +1,13 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import * as XLSX from "xlsx"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { formatCurrencyByCode, cn } from "@/lib/utils"
 import { quoteStatusColors, quoteStatusLabels } from "@/types"
-import { Search, AlertTriangle, CalendarClock, Coins, Download } from "lucide-react"
+import { Search, AlertTriangle, CalendarClock, Coins, Download, ChevronRight } from "lucide-react"
 
 interface Row {
   id: string
@@ -27,14 +28,14 @@ type Filter = "todos" | "semana" | "atrasados"
 const sumByCurrency = (list: { currency: string; saldo: number }[]) =>
   list.reduce((acc, r) => { acc[r.currency] = (acc[r.currency] || 0) + r.saldo; return acc }, {} as Record<string, number>)
 
-// Renderiza uno o varios montos (uno por moneda) — el primero grande, el resto menor
+// Renderiza uno o varios montos (uno por moneda) — todos al mismo tamaño
 function Amounts({ map, big, tone }: { map: Record<string, number>; big: string; tone?: string }) {
   const entries = Object.entries(map).filter(([, v]) => v > 0.5)
   if (entries.length === 0) return <div className={cn(big, tone)}>{formatCurrencyByCode(0, "GTQ")}</div>
   return (
     <div className="space-y-0.5">
-      {entries.map(([cur, val], i) => (
-        <div key={cur} className={cn(i === 0 ? big : "text-base font-semibold font-mono opacity-80", tone)}>
+      {entries.map(([cur, val]) => (
+        <div key={cur} className={cn(big, tone)}>
           {formatCurrencyByCode(val, cur)}
         </div>
       ))}
@@ -48,6 +49,7 @@ const startOfToday = () => {
 }
 
 export default function CobranzaContent({ rows }: { rows: Row[] }) {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<Filter>("todos")
 
@@ -209,12 +211,13 @@ export default function CobranzaContent({ rows }: { rows: Row[] }) {
                 <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
                 <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">Pagado</th>
                 <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Saldo</th>
+                <th className="w-10"></th>
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-muted-foreground">
+                  <td colSpan={7} className="py-16 text-center text-muted-foreground">
                     <Coins className="w-10 h-10 mx-auto mb-3 opacity-30" />
                     {rows.length === 0 ? "No hay saldos pendientes. ¡Todo cobrado!" : "Sin resultados para este filtro."}
                   </td>
@@ -224,7 +227,12 @@ export default function CobranzaContent({ rows }: { rows: Row[] }) {
                   const pct = r.total > 0 ? Math.min((r.paid / r.total) * 100, 100) : 0
                   const badge = dayBadge(r.d)
                   return (
-                    <tr key={r.id} className="border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors">
+                    <tr
+                      key={r.id}
+                      onClick={() => router.push(`/quotes?id=${r.id}`)}
+                      title="Abrir cotización para gestionar el pago"
+                      className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                    >
                       <td className="p-3">
                         <div className="font-semibold text-foreground">{r.clientName}</div>
                         <div className="text-xs text-muted-foreground truncate max-w-[240px]">
@@ -251,6 +259,9 @@ export default function CobranzaContent({ rows }: { rows: Row[] }) {
                         </div>
                       </td>
                       <td className="p-3 text-right font-mono font-bold text-vm-sienna whitespace-nowrap">{formatCurrencyByCode(r.saldo, r.currency)}</td>
+                      <td className="p-3 text-muted-foreground/40">
+                        <ChevronRight className="w-4 h-4" />
+                      </td>
                     </tr>
                   )
                 })

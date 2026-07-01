@@ -290,7 +290,7 @@ export default function InventoryPage() {
               const blob = new Blob([csv], { type: "text/csv" })
               const url = URL.createObjectURL(blob)
               const a = document.createElement("a")
-              a.href = url; a.download = "inventario_villas_mayen.csv"; a.click()
+              a.href = url; a.download = "inventario_villas_magen.csv"; a.click()
               URL.revokeObjectURL(url)
             }}><Download className="w-4 h-4 mr-1" /> Exportar CSV</Button>
           </div>

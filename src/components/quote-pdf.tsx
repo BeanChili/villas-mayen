@@ -1,5 +1,6 @@
 "use client"
 
+// PDF de cotización — tabla sin columna "Código", cabeceras centradas
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer"
 
 // ─── columnas de la tabla ──────────────────────────────────────────────────
@@ -385,11 +386,11 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Image src="/logo.png" style={{ width: 60, height: 60, marginBottom: 8 }} />
-            <Text style={styles.companyName}>CASA VILLAS MAYEN</Text>
+            <Text style={styles.companyName}>CASA VILLAS MAGEN</Text>
             <Text style={styles.companyInfo}>10 Calle 28-00 Zona 4, Finca El Naranjo</Text>
             <Text style={styles.companyInfo}>Mixco, Guatemala</Text>
             <Text style={styles.companyInfo}>Tel. +(502) 2434-3375, +(502) 5580-0340</Text>
-            <Text style={styles.companyInfo}>villas.mayen@gmail.com</Text>
+            <Text style={styles.companyInfo}>villas.magen@gmail.com</Text>
           </View>
           <View style={styles.headerRight}>
             <View style={styles.quoteInfoRow}>
@@ -549,7 +550,7 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
             **PRECIOS CON IVA INCLUIDO**
           </Text>
           <Text style={{ color: "#1976D2", marginTop: 5 }}>
-            Emitir cheque a Nombre de: Casa Villas Mayen, S.A. o Transferencia a Banco Industrial, Cuenta Monetaria No. 105-011028-5
+            Emitir cheque a Nombre de: Casa Villas Magen, S.A. o Transferencia a Banco Industrial, Cuenta Monetaria No. 105-011028-5
           </Text>
         </View>
 
@@ -557,7 +558,6 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
         <View style={styles.signatureSection}>
           <View style={styles.signatureBox}>
             <Text style={styles.signatureLabel}>Vendedor:</Text>
-            <Text style={styles.signatureLabel}>Olga Argentina Herrera Campos</Text>
           </View>
           <View style={styles.signatureBox}>
             <Text style={styles.signatureLabel}>Nombre:</Text>
@@ -567,7 +567,7 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text>Casa Villas Mayen - Cotización {quoteNumber}</Text>
+          <Text>Casa Villas Magen - Cotización {quoteNumber}</Text>
         </View>
       </Page>
     </Document>

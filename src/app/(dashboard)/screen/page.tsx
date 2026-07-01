@@ -153,9 +153,9 @@ export default function ScreenPage() {
               <ArrowLeft className="w-6 h-6" />
             </Link>
           )}
-          <img src="/logo.png" alt="Casa Villas Mayen" className="h-14 w-14 rounded-lg object-contain bg-vm-white p-1" />
+          <img src="/logo.png" alt="Casa Villas Magen" className="h-14 w-14 rounded-lg object-contain bg-vm-white p-1" />
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Casa Villas Mayen</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Casa Villas Magen</h1>
             <p className="text-sm text-vm-amber font-medium uppercase tracking-widest">Próximos eventos</p>
           </div>
         </div>
