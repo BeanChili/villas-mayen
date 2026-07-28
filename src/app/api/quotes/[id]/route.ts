@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/db"
 import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
+import { recomputeQuotePrices, loadCatalogPrices, getCurrentExchangeRate, computeQuoteTotals } from "@/lib/quotes"
 
 export async function GET(
   request: NextRequest,
@@ -41,7 +42,35 @@ export async function PUT(
     if (!guard.ok) return guard.error
 
     const body = await request.json()
-    const { clientId, eventDate, endDate, notes, items, spaces, currency, exchangeRate, guestCount, totalAmount, eventTitle, parkingSpot } = body
+    const { clientId, eventDate, endDate, notes, currency, guestCount, eventTitle, parkingSpot } = body
+    let { items, spaces, exchangeRate, totalAmount } = body
+
+    // Roles sin permiso de precios: se ignoran precios, descuentos, total y
+    // tipo de cambio del cliente; todo se recalcula del catalogo y la base
+    if (!guard.perms.canEditPrices) {
+      if (currency === "USD") {
+        const dbRate = await getCurrentExchangeRate()
+        if (!dbRate) {
+          return NextResponse.json({ success: false, error: "No hay tipo de cambio configurado" }, { status: 400 })
+        }
+        exchangeRate = dbRate
+      } else if (currency) {
+        exchangeRate = 1
+      } else {
+        exchangeRate = undefined
+      }
+
+      if (spaces || items) {
+        const catalog = await loadCatalogPrices(spaces || [], items || [])
+        const locked = recomputeQuotePrices(spaces || [], items || [], catalog, currency || "GTQ", exchangeRate || 1, guestCount)
+        if (spaces) spaces = locked.spaces
+        if (items) items = locked.items
+        totalAmount = computeQuoteTotals(spaces || [], items || [], guestCount)
+      } else {
+        // Sin el detalle no se puede tocar el total
+        totalAmount = undefined
+      }
+    }
 
     const quote = await prisma.$transaction(async (tx) => {
       if (spaces) await tx.quoteSpace.deleteMany({ where: { quoteId: params.id } })
@@ -57,7 +86,7 @@ export async function PUT(
         currency,
         exchangeRate,
         guestCount,
-        totalAmount: totalAmount || 0,
+        totalAmount: totalAmount === undefined ? undefined : (totalAmount || 0),
         eventTitle,
         parkingSpot,
         spaces: spaces ? {

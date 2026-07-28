@@ -12,6 +12,8 @@ import { productCategoryLabels } from "@/types"
 import { formatCurrency } from "@/lib/utils"
 import { Plus, Search, Package, Loader2, Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Product {
   id: string
@@ -64,6 +66,15 @@ const UNIT_MEASURES = [
 ]
 
 export default function ProductsCatalogPage() {
+  return (
+    <RequireModule module="products">
+      <ProductsCatalogContent />
+    </RequireModule>
+  )
+}
+
+function ProductsCatalogContent() {
+  const { can, canEditPrices } = usePermissions()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -244,10 +255,12 @@ export default function ProductsCatalogPage() {
           >
             Ubicaciones
           </Link>
-          <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nuevo Producto
-          </Button>
+          {can("products", "create") && (
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Producto
+            </Button>
+          )}
         </div>
       </div>
 
@@ -387,12 +400,16 @@ export default function ProductsCatalogPage() {
                       </td>
                       <td className="p-3">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(product)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(product.id)}>
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
+                          {can("products", "edit") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(product)}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {can("products", "delete") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(product.id)}>
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -490,6 +507,7 @@ export default function ProductsCatalogPage() {
                   value={formData.unitPrice}
                   onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
                   required
+                  disabled={!canEditPrices}
                 />
               </div>
               <div className="space-y-2">
@@ -533,6 +551,7 @@ export default function ProductsCatalogPage() {
                   step="0.01"
                   value={formData.pricePerDay}
                   onChange={(e) => setFormData({ ...formData, pricePerDay: e.target.value })}
+                  disabled={!canEditPrices}
                 />
               </div>
               <div className="space-y-2">
@@ -543,6 +562,7 @@ export default function ProductsCatalogPage() {
                   step="0.01"
                   value={formData.pricePerHour}
                   onChange={(e) => setFormData({ ...formData, pricePerHour: e.target.value })}
+                  disabled={!canEditPrices}
                 />
               </div>
             </div>
@@ -556,6 +576,7 @@ export default function ProductsCatalogPage() {
                 value={formData.rentalPrice}
                 onChange={(e) => setFormData({ ...formData, rentalPrice: e.target.value })}
                 placeholder="Precio cuando se alquila en una cotización"
+                disabled={!canEditPrices}
               />
             </div>
 

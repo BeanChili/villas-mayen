@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/db"
 import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
+import { recomputeQuotePrices, loadCatalogPrices, getCurrentExchangeRate, computeQuoteTotals } from "@/lib/quotes"
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,10 +43,29 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.error
 
     const body = await request.json()
-    const { clientId, eventDate, endDate, currency, exchangeRate, guestCount, spaces, notes, items, eventTitle, parkingSpot } = body
+    const { clientId, eventDate, endDate, currency, guestCount, notes, eventTitle, parkingSpot } = body
+    let { exchangeRate, spaces, items } = body
 
     if (!clientId || !eventDate || !spaces || !Array.isArray(spaces) || spaces.length === 0) {
       return NextResponse.json({ success: false, error: "Faltan campos requeridos o spaces vacío" }, { status: 400 })
+    }
+
+    // Roles sin permiso de precios: el server ignora precios, descuentos y
+    // tipo de cambio del cliente y usa los del catalogo y la base
+    if (!guard.perms.canEditPrices) {
+      if (currency === "USD") {
+        const dbRate = await getCurrentExchangeRate()
+        if (!dbRate) {
+          return NextResponse.json({ success: false, error: "No hay tipo de cambio configurado" }, { status: 400 })
+        }
+        exchangeRate = dbRate
+      } else {
+        exchangeRate = 1
+      }
+      const catalog = await loadCatalogPrices(spaces, items || [])
+      const locked = recomputeQuotePrices(spaces, items || [], catalog, currency || "GTQ", exchangeRate, guestCount)
+      spaces = locked.spaces
+      items = locked.items
     }
 
     // Validar exchangeRate para USD
@@ -53,27 +73,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Tipo de cambio inválido para USD" }, { status: 400 })
     }
 
-    // Calcular totales desde los espacios
-    const spacesTotal = spaces.reduce((sum: number, s: any) => {
-      const price = s.pricingMode === "PER_PERSON" && guestCount
-        ? guestCount * (s.unitPrice || 0)
-        : (s.unitPrice || 0)
-      const count = (s.roomFrom && s.roomTo && s.roomTo >= s.roomFrom) 
-        ? (parseInt(s.roomTo) - parseInt(s.roomFrom) + 1) 
-        : 1
-      return sum + (price * count)
-    }, 0)
-
-    const itemsTotal = (items || []).reduce((sum: number, i: any) => {
-      const totalQty = (i.dailyQuantities || []).reduce((s: number, dq: any) => s + (dq.quantity || 0), 0)
-      const itemTotal = totalQty * (i.unitPrice || 0)
-      const discount = i.discountType === "PERCENT"
-        ? itemTotal * ((i.discountValue || 0) / 100)
-        : (i.discountValue || 0)
-      return sum + (itemTotal - discount)
-    }, 0)
-
-    const subtotal = Math.round((spacesTotal + itemsTotal) * 100) / 100
+    // Calcular totales en el server desde espacios e items
+    const subtotal = computeQuoteTotals(spaces, items || [], guestCount)
 
     const quote = await prisma.quote.create({
       data: {

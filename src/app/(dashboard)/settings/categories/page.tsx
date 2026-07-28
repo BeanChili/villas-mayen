@@ -8,12 +8,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Plus, Trash2, Tag } from "lucide-react"
 import Link from "next/link"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Category {
   id: string; name: string; type: string; active: boolean
 }
 
 export default function CategoriesPage() {
+  return (
+    <RequireModule module="categories">
+      <CategoriesContent />
+    </RequireModule>
+  )
+}
+
+function CategoriesContent() {
+  const { can } = usePermissions()
   const [categories, setCategories] = useState<Category[]>([])
   const [newName, setNewName] = useState("")
   const [newType, setNewType] = useState("PRODUCT")
@@ -60,6 +71,7 @@ export default function CategoriesPage() {
         <h1 className="font-display text-2xl text-foreground">Categorías</h1>
       </div>
 
+      {can("categories", "create") && (
       <Card className="mb-6">
         <CardContent className="p-4">
           <div className="flex gap-3 items-end">
@@ -81,6 +93,7 @@ export default function CategoriesPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
@@ -92,7 +105,9 @@ export default function CategoriesPage() {
               <div className="space-y-2">{productCategories.map(c => (
                 <div key={c.id} className="flex items-center justify-between p-2 rounded border">
                   <span className="text-sm">{c.name}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteCategory(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  {can("categories", "delete") && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteCategory(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  )}
                 </div>
               ))}</div>
             )}
@@ -107,7 +122,9 @@ export default function CategoriesPage() {
               <div className="space-y-2">{furnitureCategories.map(c => (
                 <div key={c.id} className="flex items-center justify-between p-2 rounded border">
                   <span className="text-sm">{c.name}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteCategory(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  {can("categories", "delete") && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteCategory(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  )}
                 </div>
               ))}</div>
             )}

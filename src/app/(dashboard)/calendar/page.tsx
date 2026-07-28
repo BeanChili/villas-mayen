@@ -12,6 +12,8 @@ import { statusLabels, quoteStatusLabels, quoteStatusColors } from "@/types"
 import { formatCurrency, getStatusColor, getStatusLabel, getScheduleFromTime, formatParkingSpots } from "@/lib/utils"
 import { Plus, ChevronLeft, ChevronRight, MapPin, Clock, Loader2, CalendarDays, Search, AlertCircle, Check, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 // ─── tipos locales ────────────────────────────────────────────────────────────
 
@@ -123,6 +125,7 @@ interface ReservationDetailModalProps {
 }
 
 function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModalProps) {
+  const { can } = usePermissions()
   const [paymentAmount, setPaymentAmount] = useState("")
   const [paymentNotes, setPaymentNotes] = useState("")
   const [paymentType, setPaymentType] = useState("EFECTIVO")
@@ -311,7 +314,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
       {/* Actions */}
       <div className="flex gap-3 flex-wrap items-center">
         {/* Status dropdown */}
-        {!isCancelled && !isFinalised && (
+        {can("calendar", "edit") && !isCancelled && !isFinalised && (
           <div className="relative">
             <button
               onClick={() => setStatusDropdownOpen(v => !v)}
@@ -362,15 +365,17 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
                     </button>
                   )
                 })}
-                <div className="border-t border-border">
-                  <button
-                    onClick={() => { setStatusDropdownOpen(false); cancelReservation() }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/8 transition-colors duration-100"
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0 bg-destructive" />
-                    <span>Eliminar Cotización</span>
-                  </button>
-                </div>
+                {can("calendar", "delete") && (
+                  <div className="border-t border-border">
+                    <button
+                      onClick={() => { setStatusDropdownOpen(false); cancelReservation() }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left text-destructive hover:bg-destructive/8 transition-colors duration-100"
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0 bg-destructive" />
+                      <span>Eliminar Cotización</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -462,7 +467,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
         )}
 
         {/* Register payment form */}
-        {!isCancelled && pending > 0 && (
+        {can("calendar", "edit") && !isCancelled && pending > 0 && (
           <div className="flex flex-col gap-2 pt-4 border-t border-border">
             {reservation.status !== "CONFIRMADA" && reservation.status !== "EN_EJECUCION" ? (
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
@@ -550,6 +555,7 @@ function ReservationDetailModal({ reservation, onUpdate }: ReservationDetailModa
 export const dynamic = "force-dynamic"
 
 function ReservationsContent() {
+  const { can } = usePermissions()
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1273,13 +1279,15 @@ function ReservationsContent() {
           <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
             <CalendarDays className="w-12 h-12 mb-3 opacity-30" />
             <p className="text-lg">Sin eventos para este día</p>
-            <Button
-              variant="outline"
-              className="mt-4 gap-2"
-              onClick={() => (window.location.href = `/quotes?new=true`)}
-            >
-              <Plus className="w-4 h-4" /> Cotizar
-            </Button>
+            {can("calendar", "create") && (
+              <Button
+                variant="outline"
+                className="mt-4 gap-2"
+                onClick={() => (window.location.href = `/quotes?new=true`)}
+              >
+                <Plus className="w-4 h-4" /> Cotizar
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-1 min-h-0">
@@ -1451,13 +1459,15 @@ function ReservationsContent() {
               <span className="hidden sm:inline">Ver Menú</span>
             </Button>
           </a>
-          <a href="/quotes?new=true">
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Cotizar</span>
-              <span className="sm:hidden">Cotizar</span>
-            </Button>
-          </a>
+          {can("calendar", "create") && (
+            <a href="/quotes?new=true">
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Cotizar</span>
+                <span className="sm:hidden">Cotizar</span>
+              </Button>
+            </a>
+          )}
         </div>
       </div>
 
@@ -1859,12 +1869,14 @@ function ReservationsContent() {
 
 export default function ReservationsPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    }>
-      <ReservationsContent />
-    </Suspense>
+    <RequireModule module="calendar">
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin" />
+        </div>
+      }>
+        <ReservationsContent />
+      </Suspense>
+    </RequireModule>
   )
 }

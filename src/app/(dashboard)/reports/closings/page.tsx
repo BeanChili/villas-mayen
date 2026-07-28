@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { formatCurrency } from "@/lib/utils"
 import { Loader2, FileText, Plus, Search, Wallet } from "lucide-react"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface DailyClosing {
   id: string
@@ -21,6 +23,15 @@ interface DailyClosing {
 }
 
 export default function ClosingsPage() {
+  return (
+    <RequireModule module="closings">
+      <ClosingsContent />
+    </RequireModule>
+  )
+}
+
+function ClosingsContent() {
+  const { can } = usePermissions()
   const [closings, setClosings] = useState<DailyClosing[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -91,9 +102,11 @@ export default function ClosingsPage() {
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Cierres Diarios</h1>
           <p className="text-sm text-muted-foreground mt-1">Resumen de cierres por fecha</p>
         </div>
-        <Button onClick={() => setIsGenerateOpen(true)} className="gap-2">
-          <Plus className="w-4 h-4" /> Generar Cierre
-        </Button>
+        {can("closings", "create") && (
+          <Button onClick={() => setIsGenerateOpen(true)} className="gap-2">
+            <Plus className="w-4 h-4" /> Generar Cierre
+          </Button>
+        )}
       </div>
 
       {/* Filters */}

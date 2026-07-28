@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { expenseCategoryLabels } from "@/types"
 import { Plus, Search, Wallet, Loader2, Edit, Trash2, TrendingUp, TrendingDown } from "lucide-react"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Expense {
   id: string
@@ -21,6 +23,15 @@ interface Expense {
 }
 
 export default function ExpensesPage() {
+  return (
+    <RequireModule module="expenses">
+      <ExpensesPageContent />
+    </RequireModule>
+  )
+}
+
+function ExpensesPageContent() {
+  const { can } = usePermissions()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -144,10 +155,12 @@ export default function ExpensesPage() {
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Gastos</h1>
           <p className="text-gray-500">Administra los gastos del centro de eventos</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo Gasto
-        </Button>
+        {can("expenses", "create") && (
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Gasto
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -257,12 +270,16 @@ export default function ExpensesPage() {
                       <td className="p-3 text-right font-medium">{formatCurrency(expense.amount)}</td>
                       <td className="p-3">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(expense.id)}>
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
+                          {can("expenses", "edit") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {can("expenses", "delete") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(expense.id)}>
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

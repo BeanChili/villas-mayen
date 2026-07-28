@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import prisma from "@/lib/db"
 import CobranzaContent from "./cobranza-content"
+import { RequireModule } from "@/components/require-module"
+import { getUserPermissions } from "@/lib/permissions"
 
 export const dynamic = "force-dynamic"
 
@@ -40,6 +42,17 @@ export default async function CobranzaPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect("/login")
 
+  // Chequeo server-side: la pagina serializa montos en el HTML, no alcanza
+  // con ocultarla en el cliente
+  const perms = await getUserPermissions((session.user as any).id)
+  if (!perms?.modules["reports_cobranza"]?.view) {
+    redirect("/")
+  }
+
   const rows = await getCobranza()
-  return <CobranzaContent rows={rows} />
+  return (
+    <RequireModule module="reports_cobranza">
+      <CobranzaContent rows={rows} />
+    </RequireModule>
+  )
 }

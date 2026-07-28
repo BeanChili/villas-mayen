@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge"
 import { furnitureCategoryLabels, furnitureStatusLabels } from "@/types"
 import { Plus, Search, Package, Loader2, Edit, Trash2, AlertTriangle, Download } from "lucide-react"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Furniture {
   id: string
@@ -35,6 +37,15 @@ interface Category {
 }
 
 export default function InventoryPage() {
+  return (
+    <RequireModule module="inventory">
+      <InventoryContent />
+    </RequireModule>
+  )
+}
+
+function InventoryContent() {
+  const { can, canEditPrices } = usePermissions()
   const [furniture, setFurniture] = useState<Furniture[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -187,10 +198,12 @@ export default function InventoryPage() {
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Inventario</h1>
           <p className="text-gray-500">Administra el mobiliario del centro de eventos</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo Artículo
-        </Button>
+        {can("inventory", "create") && (
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Artículo
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -341,12 +354,16 @@ export default function InventoryPage() {
                       <td className="p-3 text-gray-600">{item.location || "-"}</td>
                       <td className="p-3">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" data-testid="edit-furniture-btn" onClick={() => handleEdit(item)}>
-                             <Edit className="w-4 h-4" />
-                           </Button>
-                           <Button variant="ghost" size="sm" data-testid="delete-furniture-btn" onClick={() => handleDelete(item.id)}>
-                             <Trash2 className="w-4 h-4 text-red-500" />
-                           </Button>
+                          {can("inventory", "edit") && (
+                            <Button variant="ghost" size="sm" data-testid="edit-furniture-btn" onClick={() => handleEdit(item)}>
+                               <Edit className="w-4 h-4" />
+                             </Button>
+                          )}
+                          {can("inventory", "delete") && (
+                             <Button variant="ghost" size="sm" data-testid="delete-furniture-btn" onClick={() => handleDelete(item.id)}>
+                               <Trash2 className="w-4 h-4 text-red-500" />
+                             </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -452,6 +469,7 @@ export default function InventoryPage() {
                   type="number"
                   value={formData.rentalPrice}
                   onChange={(e) => setFormData({ ...formData, rentalPrice: parseFloat(e.target.value) || 0 })}
+                  disabled={!canEditPrices}
                 />
               </div>
 

@@ -12,6 +12,8 @@ import { quoteStatusLabels, quoteStatusColors, productCategoryLabels, locationTy
 import { formatCurrency, formatCurrencyByCode, formatParkingSpots, getScheduleFromTime } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { Plus, Search, Loader2, Eye, Send, Check, X, FileText, Trash2, Clock, MapPin, Wallet, Mail, AlertTriangle, Pencil } from "lucide-react"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 // ─── tipos locales ────────────────────────────────────────────────────────────
 
@@ -91,13 +93,16 @@ function parseParkingSpots(value?: string): string[] {
 
 export default function QuotesPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
-      <QuotesContent />
-    </Suspense>
+    <RequireModule module="quotes">
+      <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
+        <QuotesContent />
+      </Suspense>
+    </RequireModule>
   )
 }
 
 function QuotesContent() {
+  const { can, canEditPrices } = usePermissions()
   const searchParams = useSearchParams()
   const urlId = searchParams.get("id")
   const urlClient = searchParams.get("client")
@@ -883,9 +888,11 @@ function QuotesContent() {
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Cotizaciones</h1>
           <p className="text-sm text-muted-foreground mt-1">Administra las cotizaciones de eventos</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
-          <Plus className="w-4 h-4" /> Nueva Cotización
-        </Button>
+        {can("quotes", "create") && (
+          <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
+            <Plus className="w-4 h-4" /> Nueva Cotización
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -973,22 +980,22 @@ function QuotesContent() {
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => viewQuoteDetails(quote)} title="Ver detalle"><Eye className="w-3.5 h-3.5" /></Button>
-                          {quote.status !== "CANCELADO" && quote.status !== "FINALIZADA" && (
+                          {can("quotes", "edit") && quote.status !== "CANCELADO" && quote.status !== "FINALIZADA" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditQuote(quote)} title="Editar Cotización"><Pencil className="w-3.5 h-3.5" /></Button>
                           )}
-                          {quote.status === "BORRADOR" && (
+                          {can("quotes", "edit") && quote.status === "BORRADOR" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-vm-gold" onClick={() => handleStatusChange(quote.id, "ENVIADA")} title="Enviar"><Send className="w-3.5 h-3.5" /></Button>
                           )}
-                          {quote.status === "ENVIADA" && (
+                          {can("quotes", "edit") && quote.status === "ENVIADA" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-vm-sage" onClick={() => handleStatusChange(quote.id, "CONFIRMADA")} title="Confirmar"><Check className="w-3.5 h-3.5" /></Button>
                           )}
-                          {quote.status === "NO_CONFIRMADA" && (
+                          {can("quotes", "edit") && quote.status === "NO_CONFIRMADA" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-vm-gold" onClick={() => handleStatusChange(quote.id, "ENVIADA")} title="Reenviar"><Send className="w-3.5 h-3.5" /></Button>
                           )}
-                          {(quote.status === "CONFIRMADA" || quote.status === "EN_EJECUCION") && (
+                          {can("quotes", "delete") && (quote.status === "CONFIRMADA" || quote.status === "EN_EJECUCION") && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("¿Eliminar esta cotización? Esta acción no se puede deshacer")) handleStatusChange(quote.id, "CANCELADO") }} title="Eliminar Cotización"><X className="w-3.5 h-3.5" /></Button>
                           )}
-                          {quote.status === "EN_EJECUCION" && (
+                          {can("quotes", "edit") && quote.status === "EN_EJECUCION" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-vm-sienna" onClick={() => { if (confirm("¿Finalizar y liquidar?")) handleStatusChange(quote.id, "FINALIZADA") }} title="Finalizar"><Check className="w-3.5 h-3.5" /></Button>
                           )}
                         </div>
@@ -1148,11 +1155,11 @@ function QuotesContent() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Precio ({formData.currency})</Label>
-                      <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.unitPrice ?? ""} onChange={e => updateSpace(idx, "unitPrice", e.target.value === "" ? 0 : parseFloat(e.target.value) || 0)} />
+                      <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.unitPrice ?? ""} disabled={!canEditPrices} title={!canEditPrices ? "Tu rol no puede modificar precios" : undefined} onChange={e => updateSpace(idx, "unitPrice", e.target.value === "" ? 0 : parseFloat(e.target.value) || 0)} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Tipo de ajuste</Label>
-                      <Select value={space.adjustmentType || "DISCOUNT"} onValueChange={v => updateSpace(idx, "adjustmentType", v)}>
+                      <Select value={space.adjustmentType || "DISCOUNT"} disabled={!canEditPrices} onValueChange={v => updateSpace(idx, "adjustmentType", v)}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="DISCOUNT">Descuento</SelectItem>
@@ -1162,7 +1169,7 @@ function QuotesContent() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Monto ajuste ({formData.currency})</Label>
-                      <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.discountValue || ""} onChange={e => updateSpace(idx, "discountValue", parseFloat(e.target.value) || 0)} />
+                      <Input type="number" min="0" step="0.01" className="h-8 text-xs font-mono" value={space.discountValue || ""} disabled={!canEditPrices} title={!canEditPrices ? "Tu rol no puede modificar precios" : undefined} onChange={e => updateSpace(idx, "discountValue", parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   {space.locationType === "ROOM" && (
@@ -1274,16 +1281,16 @@ function QuotesContent() {
                         <td className="p-2.5">
                           <div className="flex flex-col gap-1 min-w-[110px]">
                             <div className="flex gap-1">
-                              <select className="h-7 flex-1 min-w-0 text-[10px] border border-border rounded bg-background px-1" value={item.adjustmentType || "DISCOUNT"} onChange={e => updateItem(index, "adjustmentType", e.target.value)}>
+                              <select className="h-7 flex-1 min-w-0 text-[10px] border border-border rounded bg-background px-1" disabled={!canEditPrices} value={item.adjustmentType || "DISCOUNT"} onChange={e => updateItem(index, "adjustmentType", e.target.value)}>
                                 <option value="DISCOUNT">Desc.</option>
                                 <option value="SURCHARGE">Recargo</option>
                               </select>
-                              <select className="h-7 w-12 shrink-0 text-xs border border-border rounded bg-background px-1" value={item.discountType || ""} onChange={e => updateItem(index, "discountType", e.target.value || undefined)}>
+                              <select className="h-7 w-12 shrink-0 text-xs border border-border rounded bg-background px-1" disabled={!canEditPrices} value={item.discountType || ""} onChange={e => updateItem(index, "discountType", e.target.value || undefined)}>
                                 <option value="">-</option><option value="PERCENT">%</option><option value="FIXED">$</option>
                               </select>
                             </div>
                             {item.discountType && (
-                              <Input type="number" min="0" step={item.discountType === "PERCENT" ? "1" : "0.01"} value={item.discountValue || ""} onChange={e => updateItem(index, "discountValue", parseFloat(e.target.value) || 0)} className="w-full h-7 text-center font-mono text-xs" />
+                              <Input type="number" min="0" step={item.discountType === "PERCENT" ? "1" : "0.01"} value={item.discountValue || ""} disabled={!canEditPrices} title={!canEditPrices ? "Tu rol no puede modificar precios" : undefined} onChange={e => updateItem(index, "discountValue", parseFloat(e.target.value) || 0)} className="w-full h-7 text-center font-mono text-xs" />
                             )}
                           </div>
                         </td>

@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Search, Home, Loader2, Edit, Trash2 } from "lucide-react"
 import { roomStatusLabels, bedTypeLabels, type RoomStatus } from "@/types"
 import { cn, formatCurrency } from "@/lib/utils"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Room {
   id: string
@@ -55,6 +57,15 @@ const statusColorMap: Record<string, string> = {
 }
 
 export default function RoomsPage() {
+  return (
+    <RequireModule module="rooms">
+      <RoomsPageContent />
+    </RequireModule>
+  )
+}
+
+function RoomsPageContent() {
+  const { can } = usePermissions()
   const [rooms, setRooms] = useState<Room[]>([])
   const [buildings, setBuildings] = useState<Building[]>([])
   const [floors, setFloors] = useState<Floor[]>([])
@@ -236,10 +247,12 @@ export default function RoomsPage() {
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Habitaciones</h1>
           <p className="text-gray-500">Administra las habitaciones del centro de eventos</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nueva Habitación
-        </Button>
+        {can("rooms", "create") && (
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nueva Habitación
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -394,12 +407,16 @@ export default function RoomsPage() {
                       </td>
                       <td className="p-3">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(room)} data-testid="edit-room-btn">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(room.id)} data-testid="delete-room-btn">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
+                          {can("rooms", "edit") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(room)} data-testid="edit-room-btn">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {can("rooms", "delete") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(room.id)} data-testid="delete-room-btn">
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

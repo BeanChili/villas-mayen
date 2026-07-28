@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge"
 import { quoteStatusLabels, quoteStatusColors, returnStatusLabels } from "@/types"
 import { Archive, Loader2, Check, AlertTriangle, XCircle, DollarSign } from "lucide-react"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Quote {
   id: string
@@ -57,6 +59,15 @@ interface EventClosingItem {
 }
 
 export default function EventsPage() {
+  return (
+    <RequireModule module="events">
+      <EventsContent />
+    </RequireModule>
+  )
+}
+
+function EventsContent() {
+  const { can } = usePermissions()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [closings, setClosings] = useState<EventClosing[]>([])
   const [loading, setLoading] = useState(true)
@@ -308,13 +319,15 @@ export default function EventsPage() {
                       )}
                     </div>
                   </div>
-                  <Button 
-                    onClick={() => openLiquidationDialog(quote)}
-                    disabled={quote.status !== "CONFIRMADA" && quote.status !== "EN_EJECUCION"}
-                    title={quote.status !== "CONFIRMADA" && quote.status !== "EN_EJECUCION" ? "La cotización debe estar confirmada para liquidar" : ""}
-                  >
-                    Liquidar
-                  </Button>
+                  {can("events", "edit") && (
+                    <Button
+                      onClick={() => openLiquidationDialog(quote)}
+                      disabled={quote.status !== "CONFIRMADA" && quote.status !== "EN_EJECUCION"}
+                      title={quote.status !== "CONFIRMADA" && quote.status !== "EN_EJECUCION" ? "La cotización debe estar confirmada para liquidar" : ""}
+                    >
+                      Liquidar
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

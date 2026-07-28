@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { clientTypeLabels, clientCategoryLabels } from "@/types"
 import { getClientCategoryColor } from "@/lib/utils"
 import { Plus, Search, Users, Loader2, Edit, Trash2 } from "lucide-react"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Client {
   id: string
@@ -28,6 +30,15 @@ interface Client {
 }
 
 export default function ClientsPage() {
+  return (
+    <RequireModule module="clients">
+      <ClientsPageContent />
+    </RequireModule>
+  )
+}
+
+function ClientsPageContent() {
+  const { can } = usePermissions()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -149,10 +160,12 @@ export default function ClientsPage() {
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Clientes</h1>
           <p className="text-gray-500">Administra los clientes del centro de eventos</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo Cliente
-        </Button>
+        {can("clients", "create") && (
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Cliente
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -276,12 +289,16 @@ export default function ClientsPage() {
                       </td>
                       <td className="p-3">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(client)} data-testid="edit-client-btn">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(client.id)} data-testid="delete-client-btn">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
+                          {can("clients", "edit") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(client)} data-testid="edit-client-btn">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {can("clients", "delete") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(client.id)} data-testid="delete-client-btn">
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

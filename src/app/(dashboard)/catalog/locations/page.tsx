@@ -12,6 +12,8 @@ import { locationTypeLabels } from "@/types"
 import { formatCurrency } from "@/lib/utils"
 import { Plus, Search, MapPin, Loader2, Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
+import { usePermissions } from "@/components/permissions-provider"
+import { RequireModule } from "@/components/require-module"
 
 interface Location {
   id: string
@@ -31,6 +33,15 @@ const LOCATION_TYPES = [
 ]
 
 export default function LocationsCatalogPage() {
+  return (
+    <RequireModule module="locations">
+      <LocationsCatalogContent />
+    </RequireModule>
+  )
+}
+
+function LocationsCatalogContent() {
+  const { can, canEditPrices } = usePermissions()
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -160,10 +171,12 @@ export default function LocationsCatalogPage() {
           >
             Productos
           </Link>
-          <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nueva Ubicación
-          </Button>
+          {can("locations", "create") && (
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nueva Ubicación
+            </Button>
+          )}
         </div>
       </div>
 
@@ -266,12 +279,16 @@ export default function LocationsCatalogPage() {
                       </td>
                       <td className="p-3">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(location)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(location.id)}>
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
+                          {can("locations", "edit") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(location)}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {can("locations", "delete") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(location.id)}>
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -339,6 +356,7 @@ export default function LocationsCatalogPage() {
                   step="0.01"
                   value={formData.unitPrice}
                   onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+                  disabled={!canEditPrices}
                 />
               </div>
             </div>

@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import prisma from "@/lib/db"
 import OcupacionContent from "./ocupacion-content"
+import { RequireModule } from "@/components/require-module"
+import { getUserPermissions } from "@/lib/permissions"
 
 export const dynamic = "force-dynamic"
 
@@ -42,7 +44,17 @@ export default async function OcupacionPage({ searchParams }: { searchParams: { 
   const session = await getServerSession(authOptions)
   if (!session) redirect("/login")
 
+  // Chequeo server-side: los datos van serializados en el HTML
+  const perms = await getUserPermissions((session.user as any).id)
+  if (!perms?.modules["reports_ocupacion"]?.view) {
+    redirect("/")
+  }
+
   const year = Number(searchParams?.year) || new Date().getFullYear()
   const counts = await getOcupacion(year)
-  return <OcupacionContent counts={counts} year={year} />
+  return (
+    <RequireModule module="reports_ocupacion">
+      <OcupacionContent counts={counts} year={year} />
+    </RequireModule>
+  )
 }
