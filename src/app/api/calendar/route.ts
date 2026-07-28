@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["calendar", "view"], ["dashboard", "view"], ["screen", "view"]])
+    if (!guard.ok) return guard.error
 
     const { searchParams } = new URL(request.url)
     const month = searchParams.get("month")

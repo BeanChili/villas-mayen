@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requirePermission("calendar", "edit")
+    if (!guard.ok) return guard.error
 
     const { id } = await params
-    const role = session.user.role as any
-    if (!hasPermission(role, "calendar", "update")) {
-      return NextResponse.json({ success: false, error: "No tienes permiso para modificar" }, { status: 403 })
-    }
 
     const body = await request.json()
     const { status, totalAmount, paidAmount, notes } = body
@@ -71,15 +63,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = session.user.role as any
-    if (!hasPermission(role, "calendar", "read")) {
-      return NextResponse.json({ success: false, error: "Sin permiso" }, { status: 403 })
-    }
+    const guard = await requireAnyPermission([["calendar", "view"], ["quotes", "view"]])
+    if (!guard.ok) return guard.error
 
     const { id } = await params
 

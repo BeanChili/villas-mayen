@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { sendClosingEmail } from "@/lib/email"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "quotes", "update")) {
-      return NextResponse.json({ success: false, error: "Sin permiso" }, { status: 403 })
-    }
+    const guard = await requireAnyPermission([["quotes", "edit"], ["events", "create"]])
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { quoteId, to } = body

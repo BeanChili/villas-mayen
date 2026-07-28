@@ -18,7 +18,7 @@ beforeEach(async () => {
 
 describe("api/closings (cierres diarios)", () => {
   it("ENCARGADO_EVENTO crea el cierre del dia y el duplicado da 409", async () => {
-    mockSession("ENCARGADO_EVENTO", { name: "Encargado" })
+    await mockSession("ENCARGADO_EVENTO", { name: "Encargado" })
     const res = await postDailyClosing(
       jsonRequest("POST", "/api/closings", { date: "2026-07-01" })
     )
@@ -31,7 +31,7 @@ describe("api/closings (cierres diarios)", () => {
   })
 
   it("VISUAL no puede crear cierres (403)", async () => {
-    mockSession("VISUAL")
+    await mockSession("VISUAL")
     const res = await postDailyClosing(
       jsonRequest("POST", "/api/closings", { date: "2026-07-02" })
     )
@@ -42,7 +42,7 @@ describe("api/closings (cierres diarios)", () => {
 describe("api/event-closings (liquidacion)", () => {
   it("solo se liquida una cotizacion EN_EJECUCION o FINALIZADA", async () => {
     const cliente = await createTestClient()
-    mockSession("ENCARGADO_EVENTO", { name: "Encargado" })
+    await mockSession("ENCARGADO_EVENTO", { name: "Encargado" })
 
     // Ni BORRADOR ni CONFIRMADA se pueden liquidar
     for (const status of ["BORRADOR", "CONFIRMADA"]) {
@@ -71,7 +71,7 @@ describe("api/event-closings (liquidacion)", () => {
   it("no se puede liquidar dos veces la misma cotizacion (409)", async () => {
     const cliente = await createTestClient()
     const quote = await createTestQuote(cliente.id, { status: "EN_EJECUCION" })
-    mockSession("ADMIN", { name: "Admin" })
+    await mockSession("ADMIN", { name: "Admin" })
 
     const primero = await postEventClosing(
       jsonRequest("POST", "/api/event-closings", { quoteId: quote.id, returnStatus: "COMPLETO" })
@@ -87,7 +87,7 @@ describe("api/event-closings (liquidacion)", () => {
   it("FINANZAS no puede liquidar (403)", async () => {
     const cliente = await createTestClient()
     const quote = await createTestQuote(cliente.id, { status: "CONFIRMADA" })
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await postEventClosing(
       jsonRequest("POST", "/api/event-closings", { quoteId: quote.id, returnStatus: "COMPLETO" })
     )
@@ -100,7 +100,7 @@ describe("api/exchange-rate", () => {
     await prisma.exchangeRate.create({
       data: { fromCurrency: "USD", toCurrency: "GTQ", rate: 7.85, updatedBy: "seed" },
     })
-    mockSession("VISUAL")
+    await mockSession("VISUAL")
     const res = await getExchangeRate(getRequest("/api/exchange-rate"))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -108,7 +108,7 @@ describe("api/exchange-rate", () => {
   })
 
   it("POST valida la tasa", async () => {
-    mockSession("ADMIN", { name: "Admin" })
+    await mockSession("ADMIN", { name: "Admin" })
     const invalida = await postExchangeRate(
       jsonRequest("POST", "/api/exchange-rate", { rate: -1 })
     )

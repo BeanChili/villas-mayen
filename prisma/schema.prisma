@@ -19,10 +19,39 @@ model User {
   password  String
   email     String?
   phone     String?
-  role      String   @default("VISUAL")
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Roles 100% customizables: el cliente arma la matriz de permisos por modulo
+// desde la app. SUPERADMIN es de sistema (matriz fija, no borrable).
+model Role {
+  id            String   @id @default(cuid())
+  key           String   @unique // slug estable (SUPERADMIN, CONTADOR, ...)
+  name          String   @unique // nombre visible, editable
+  description   String?
+  isSystem      Boolean  @default(false)
+  canEditPrices Boolean  @default(false) // permiso transversal de precios
+  users         User[]
+  permissions   RolePermission[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model RolePermission {
+  id        String  @id @default(cuid())
+  roleId    String
+  role      Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module    String
+  canView   Boolean @default(false)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  @@unique([roleId, module])
 }
 
 // ==================== CLIENTES ====================
@@ -406,18 +435,6 @@ model EmailLog {
 
 // ==================== PERMISOS ====================
 
-model Permission {
-  id         String  @id @default(cuid())
-  role       String
-  module     String
-  canCreate  Boolean @default(false)
-  canRead    Boolean @default(false)
-  canUpdate  Boolean @default(false)
-  canDelete  Boolean @default(false)
-  canApprove Boolean @default(false)
-
-  @@unique([role, module])
-}
 
 // ==================== CATEGORÍAS EDITABLES ====================
 

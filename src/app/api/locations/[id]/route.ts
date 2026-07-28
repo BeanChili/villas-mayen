@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["locations", "view"], ["quotes", "view"]])
+    if (!guard.ok) return guard.error
 
     const location = await prisma.location.findUnique({
       where: { id: params.id },
@@ -37,18 +33,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "settings", "update")) {
-      return NextResponse.json(
-        { success: false, error: "No tienes permiso para actualizar ubicaciones" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("locations", "edit")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { name, type, capacity, unitPrice, active } = body
@@ -79,18 +65,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "settings", "delete")) {
-      return NextResponse.json(
-        { success: false, error: "No tienes permiso para eliminar ubicaciones" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("locations", "delete")
+    if (!guard.ok) return guard.error
 
     // Soft delete
     await prisma.location.update({

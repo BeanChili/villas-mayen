@@ -25,7 +25,7 @@ interface DashboardData {
 interface User {
   name?: string | null
   email?: string | null
-  role: string
+  roleName: string
 }
 
 export default function DashboardContent({ data, user }: { data: DashboardData; user: User }) {
@@ -90,8 +90,8 @@ export default function DashboardContent({ data, user }: { data: DashboardData; 
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-500">Rol</p>
-          <p className="font-medium capitalize">
-            {user.role.replace("_", " ").toLowerCase()}
+          <p className="font-medium">
+            {user.roleName || "Usuario"}
           </p>
         </div>
       </div>

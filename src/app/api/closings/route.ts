@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["closings", "view"]])
+    if (!guard.ok) return guard.error
 
     const { searchParams } = new URL(request.url)
     const from = searchParams.get("from")
@@ -37,15 +33,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "events", "create")) {
-      return NextResponse.json({ success: false, error: "Sin permiso" }, { status: 403 })
-    }
+    const guard = await requirePermission("events", "create")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { date, incidents } = body
@@ -97,7 +86,7 @@ export async function POST(request: NextRequest) {
         totalCollected,
         pendingAmount,
         incidents: incidents || null,
-        createdBy: session.user?.name || "Sistema",
+        createdBy: guard.session.user?.name || "Sistema",
       },
     })
 

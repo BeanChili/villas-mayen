@@ -3,6 +3,7 @@ import {authOptions} from "@/lib/auth"
 import {redirect} from "next/navigation"
 import DashboardContent from "./dashboard-content"
 import prisma from "@/lib/db"
+import { getUserPermissions } from "@/lib/permissions"
 
 async function getDashboardData() {
   const now = new Date()
@@ -160,6 +161,22 @@ async function getDashboardData() {
   }
 }
 
+// Orden de fallback para roles sin acceso al dashboard: van al primer
+// modulo que puedan ver (caso Finanzas Restringido, que entra por Gastos)
+const FALLBACK_ROUTES: Array<[string, string]> = [
+  ["expenses", "/expenses"],
+  ["calendar", "/calendar"],
+  ["quotes", "/quotes"],
+  ["clients", "/clients"],
+  ["rooms", "/rooms"],
+  ["inventory", "/inventory"],
+  ["events", "/events"],
+  ["closings", "/reports/closings"],
+  ["reports_cobranza", "/reports/cobranza"],
+  ["reports_ocupacion", "/reports/ocupacion"],
+  ["screen", "/screen"],
+]
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
 
@@ -167,7 +184,19 @@ export default async function DashboardPage() {
     redirect("/login")
   }
 
+  const perms = await getUserPermissions((session.user as any).id)
+  if (!perms) {
+    redirect("/login")
+  }
+
+  if (!perms.modules["dashboard"]?.view) {
+    const target = FALLBACK_ROUTES.find(([module]) => perms.modules[module]?.view)
+    if (target) {
+      redirect(target[1])
+    }
+  }
+
   const data = await getDashboardData()
 
-  return <DashboardContent data={data} user={session.user} />
+  return <DashboardContent data={data} user={{ ...session.user, roleName: perms.roleName }} />
 }

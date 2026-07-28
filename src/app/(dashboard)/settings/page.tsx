@@ -8,9 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { roleLabels } from "@/types"
 import { Plus, Search, Users, Loader2, Edit, Trash2, Shield, DollarSign, TrendingUp, Tag } from "lucide-react"
 import Link from "next/link"
+import { usePermissions } from "@/components/permissions-provider"
+
+interface RoleOption {
+  id: string
+  key: string
+  name: string
+}
 
 interface User {
   id: string
@@ -18,13 +24,16 @@ interface User {
   username: string
   email?: string
   phone?: string
-  role: string
+  roleId: string
+  role: RoleOption | null
   active: boolean
   createdAt: string
 }
 
 export default function SettingsPage() {
+  const { can, canEditPrices } = usePermissions()
   const [users, setUsers] = useState<User[]>([])
+  const [roles, setRoles] = useState<RoleOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
@@ -38,7 +47,7 @@ export default function SettingsPage() {
     password: "",
     email: "",
     phone: "",
-    role: "VISUAL",
+    roleId: "",
     active: true,
   })
 
@@ -49,6 +58,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchUsers()
+    fetchRoles()
     fetchExchangeRate()
   }, [])
 
@@ -56,11 +66,23 @@ export default function SettingsPage() {
     try {
       const response = await fetch("/api/users")
       const data = await response.json()
-      setUsers(data)
+      setUsers(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching users:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchRoles() {
+    try {
+      const response = await fetch("/api/roles")
+      const body = await response.json()
+      if (body.success && Array.isArray(body.data)) {
+        setRoles(body.data.map((r: any) => ({ id: r.id, key: r.key, name: r.name })))
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error)
     }
   }
 
@@ -107,17 +129,22 @@ export default function SettingsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
+    if (!formData.roleId) {
+      alert("Seleccioná un rol")
+      return
+    }
+
     try {
       const url = selectedUser ? `/api/users/${selectedUser.id}` : "/api/users"
       const method = selectedUser ? "PUT" : "POST"
-      
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       })
-      
+
       if (response.ok) {
         setIsDialogOpen(false)
         fetchUsers()
@@ -139,7 +166,7 @@ export default function SettingsPage() {
       password: "",
       email: user.email || "",
       phone: user.phone || "",
-      role: user.role,
+      roleId: user.roleId,
       active: user.active,
     })
     setIsEditing(true)
@@ -148,7 +175,7 @@ export default function SettingsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("¿Estás seguro de eliminar este usuario?")) return
-    
+
     try {
       await fetch(`/api/users/${id}`, { method: "DELETE" })
       fetchUsers()
@@ -177,7 +204,7 @@ export default function SettingsPage() {
       password: "",
       email: "",
       phone: "",
-      role: "VISUAL",
+      roleId: "",
       active: true,
     })
     setSelectedUser(null)
@@ -185,33 +212,45 @@ export default function SettingsPage() {
   }
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
+    const matchesSearch =
       user.name.toLowerCase().includes(search.toLowerCase()) ||
       user.username.toLowerCase().includes(search.toLowerCase())
-    const matchesRole = roleFilter === "all" || user.role === roleFilter
+    const matchesRole = roleFilter === "all" || user.roleId === roleFilter
     return matchesSearch && matchesRole
   })
-
-  const roles = Object.entries(roleLabels)
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl text-foreground tracking-tight">Configuración</h1>
           <p className="text-gray-500">Administra usuarios y roles del sistema</p>
         </div>
-        <Link href="/settings/categories">
-          <Button variant="outline">
-            <Tag className="w-4 h-4 mr-2" />
-            Categorías
-          </Button>
-        </Link>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo Usuario
-        </Button>
+        <div className="flex items-center gap-2">
+          {can("roles") && (
+            <Link href="/settings/roles">
+              <Button variant="outline">
+                <Shield className="w-4 h-4 mr-2" />
+                Roles y Permisos
+              </Button>
+            </Link>
+          )}
+          {can("categories") && (
+            <Link href="/settings/categories">
+              <Button variant="outline">
+                <Tag className="w-4 h-4 mr-2" />
+                Categorías
+              </Button>
+            </Link>
+          )}
+          {can("users", "create") && (
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Usuario
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -244,7 +283,7 @@ export default function SettingsPage() {
               <Shield className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{users.filter(u => u.role === "ADMIN").length}</p>
+              <p className="text-2xl font-bold">{users.filter(u => u.role?.key === "SUPERADMIN").length}</p>
               <p className="text-sm text-gray-500">Administradores</p>
             </div>
           </CardContent>
@@ -263,39 +302,41 @@ export default function SettingsPage() {
       </div>
 
       {/* Exchange Rate Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5" />
-            Tipo de Cambio
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground mb-1">Tasa actual</p>
-              <p className="text-2xl font-bold">1 USD = {exchangeRate.toFixed(2)} GTQ</p>
-            </div>
-            <form onSubmit={handleUpdateRate} className="flex items-end gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Nueva tasa</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={newRate}
-                  onChange={(e) => setNewRate(e.target.value)}
-                  placeholder="7.85"
-                  className="w-32"
-                />
+      {canEditPrices && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Tipo de Cambio
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-4">
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground mb-1">Tasa actual</p>
+                <p className="text-2xl font-bold">1 USD = {exchangeRate.toFixed(2)} GTQ</p>
               </div>
-              <Button type="submit" disabled={savingRate}>
-                {savingRate ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
-                Actualizar
-              </Button>
-            </form>
-          </div>
-        </CardContent>
-      </Card>
+              <form onSubmit={handleUpdateRate} className="flex items-end gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Nueva tasa</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newRate}
+                    onChange={(e) => setNewRate(e.target.value)}
+                    placeholder="7.85"
+                    className="w-32"
+                  />
+                </div>
+                <Button type="submit" disabled={savingRate}>
+                  {savingRate ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
+                  Actualizar
+                </Button>
+              </form>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-4">
@@ -314,8 +355,8 @@ export default function SettingsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los roles</SelectItem>
-            {roles.map(([key, label]) => (
-              <SelectItem key={key} value={key}>{label}</SelectItem>
+            {roles.map((role) => (
+              <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -352,11 +393,11 @@ export default function SettingsPage() {
                       <td className="p-3 text-gray-600">{user.email || "-"}</td>
                       <td className="p-3">
                         <Badge variant="outline">
-                          {roleLabels[user.role as keyof typeof roleLabels] || user.role}
+                          {user.role?.name || "Sin rol"}
                         </Badge>
                       </td>
                       <td className="p-3">
-                        <Badge 
+                        <Badge
                           variant={user.active ? "default" : "secondary"}
                           className={user.active ? "bg-green-500" : "bg-gray-400"}
                         >
@@ -365,15 +406,21 @@ export default function SettingsPage() {
                       </td>
                       <td className="p-3">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => toggleActive(user)}>
-                            <Users className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(user.id)}>
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
+                          {can("users", "edit") && (
+                            <>
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => toggleActive(user)}>
+                                <Users className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                          {can("users", "delete") && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(user.id)}>
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -447,17 +494,17 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Rol</Label>
+              <Label>Rol *</Label>
               <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
+                value={formData.roleId}
+                onValueChange={(value) => setFormData({ ...formData, roleId: value })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccionar rol" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map(([key, label]) => (
-                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

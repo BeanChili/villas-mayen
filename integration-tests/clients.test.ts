@@ -16,13 +16,13 @@ beforeEach(async () => {
 
 describe("api/clients", () => {
   it("sin sesion devuelve 401", async () => {
-    mockSession(null)
+    await mockSession(null)
     const res = await GET(getRequest("/api/clients"))
     expect(res.status).toBe(401)
   })
 
   it("RECEPCIONISTA puede crear un cliente", async () => {
-    mockSession("RECEPCIONISTA")
+    await mockSession("RECEPCIONISTA")
     const res = await POST(
       jsonRequest("POST", "/api/clients", {
         name: "Claudia Perez",
@@ -37,7 +37,7 @@ describe("api/clients", () => {
   })
 
   it("VISUAL no puede crear (403) pero si listar", async () => {
-    mockSession("VISUAL")
+    await mockSession("VISUAL")
     const post = await POST(jsonRequest("POST", "/api/clients", { name: "X" }))
     expect(post.status).toBe(403)
 
@@ -47,7 +47,7 @@ describe("api/clients", () => {
 
   it("ADMIN edita y elimina", async () => {
     const cliente = await createTestClient({ name: "Original" })
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
 
     const put = await PUT(
       jsonRequest("PUT", `/api/clients/${cliente.id}`, { name: "Editado" }),
@@ -65,7 +65,7 @@ describe("api/clients", () => {
 
   it("FINANZAS no puede editar clientes (403)", async () => {
     const cliente = await createTestClient()
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const put = await PUT(
       jsonRequest("PUT", `/api/clients/${cliente.id}`, { name: "Hackeado" }),
       { params: { id: cliente.id } }
@@ -74,7 +74,7 @@ describe("api/clients", () => {
   })
 
   it("crear sin nombre devuelve 400", async () => {
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
     const res = await POST(jsonRequest("POST", "/api/clients", { phone: "123" }))
     expect(res.status).toBe(400)
   })

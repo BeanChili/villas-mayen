@@ -12,7 +12,7 @@ beforeEach(async () => {
 
 describe("api/products", () => {
   it("ALMACEN crea y edita productos", async () => {
-    mockSession("ALMACEN")
+    await mockSession("ALMACEN")
     const res = await postProduct(
       jsonRequest("POST", "/api/products", {
         name: "Menu 1",
@@ -37,7 +37,7 @@ describe("api/products", () => {
   })
 
   it("RECEPCIONISTA no puede crear productos (403)", async () => {
-    mockSession("RECEPCIONISTA")
+    await mockSession("RECEPCIONISTA")
     const res = await postProduct(
       jsonRequest("POST", "/api/products", {
         name: "X",
@@ -52,7 +52,7 @@ describe("api/products", () => {
 
 describe("api/locations", () => {
   it("ADMIN crea, edita y elimina ubicaciones", async () => {
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
     const res = await postLocation(
       jsonRequest("POST", "/api/locations", { name: "Salon Jade", type: "HALL", unitPrice: 5000 })
     )
@@ -72,7 +72,7 @@ describe("api/locations", () => {
   })
 
   it("FINANZAS no puede crear ubicaciones (403)", async () => {
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await postLocation(
       jsonRequest("POST", "/api/locations", { name: "X", type: "HALL", unitPrice: 1 })
     )
@@ -82,7 +82,7 @@ describe("api/locations", () => {
 
 describe("api/categories", () => {
   it("crea y lista categorias, duplicado da 409", async () => {
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
     const res = await postCategory(
       jsonRequest("POST", "/api/categories", { name: "Manteleria", type: "PRODUCT" })
     )

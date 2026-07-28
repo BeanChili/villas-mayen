@@ -24,20 +24,20 @@ const gastoBase = {
 
 describe("api/expenses", () => {
   it("FINANZAS crea un gasto", async () => {
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await POST(jsonRequest("POST", "/api/expenses", gastoBase))
     expect(res.status).toBe(201)
     expect(await prisma.expense.count()).toBe(1)
   })
 
   it("RECEPCIONISTA no puede crear gastos (403)", async () => {
-    mockSession("RECEPCIONISTA")
+    await mockSession("RECEPCIONISTA")
     const res = await POST(jsonRequest("POST", "/api/expenses", gastoBase))
     expect(res.status).toBe(403)
   })
 
   it("crear sin campos requeridos devuelve 400", async () => {
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await POST(jsonRequest("POST", "/api/expenses", { amount: 10 }))
     expect(res.status).toBe(400)
   })
@@ -46,7 +46,7 @@ describe("api/expenses", () => {
     const gasto = await prisma.expense.create({
       data: { date: new Date(), category: "OTROS", description: "Original", amount: 10 },
     })
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await PUT(
       jsonRequest("PUT", `/api/expenses/${gasto.id}`, {
         ...gastoBase,
@@ -66,13 +66,13 @@ describe("api/expenses", () => {
       data: { date: new Date(), category: "OTROS", description: "Borrar", amount: 10 },
     })
 
-    mockSession("VISUAL")
+    await mockSession("VISUAL")
     const denegado = await DELETE(getRequest(`/api/expenses/${gasto.id}`), {
       params: { id: gasto.id },
     })
     expect(denegado.status).toBe(403)
 
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const ok = await DELETE(getRequest(`/api/expenses/${gasto.id}`), {
       params: { id: gasto.id },
     })
@@ -81,7 +81,7 @@ describe("api/expenses", () => {
   })
 
   it("editar un gasto inexistente devuelve 404", async () => {
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await PUT(
       jsonRequest("PUT", "/api/expenses/no-existe", gastoBase),
       { params: { id: "no-existe" } }
@@ -92,7 +92,7 @@ describe("api/expenses", () => {
   it("un gasto ligado a un evento sobrevive si se borra la cotizacion (SetNull)", async () => {
     const cliente = await createTestClient()
     const quote = await createTestQuote(cliente.id)
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     await POST(jsonRequest("POST", "/api/expenses", { ...gastoBase, quoteId: quote.id }))
 
     await prisma.quote.delete({ where: { id: quote.id } })
@@ -109,7 +109,7 @@ describe("api/expenses", () => {
         { date: new Date(), category: "SUELDOS", description: "Nomina", amount: 2 },
       ],
     })
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await GET(getRequest("/api/expenses?category=SUELDOS"))
     const body = await res.json()
     expect(body.data).toHaveLength(1)

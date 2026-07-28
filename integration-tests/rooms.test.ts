@@ -15,7 +15,7 @@ beforeEach(async () => {
 describe("api/rooms", () => {
   it("RECEPCIONISTA crea una habitacion", async () => {
     const floor = await createFloor()
-    mockSession("RECEPCIONISTA")
+    await mockSession("RECEPCIONISTA")
     const res = await POST(
       jsonRequest("POST", "/api/rooms", {
         floorId: floor.id,
@@ -32,7 +32,7 @@ describe("api/rooms", () => {
 
   it("FINANZAS no puede crear habitaciones (403)", async () => {
     const floor = await createFloor()
-    mockSession("FINANZAS")
+    await mockSession("FINANZAS")
     const res = await POST(
       jsonRequest("POST", "/api/rooms", { floorId: floor.id, number: "102" })
     )
@@ -44,7 +44,7 @@ describe("api/rooms", () => {
     const room = await prisma.room.create({
       data: { floorId: floor.id, number: "103", status: "DISPONIBLE" },
     })
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
     const res = await PUT(
       jsonRequest("PUT", `/api/rooms/${room.id}`, {
         floorId: floor.id,
@@ -61,7 +61,7 @@ describe("api/rooms", () => {
   it("GET lista con sesion", async () => {
     const floor = await createFloor()
     await prisma.room.create({ data: { floorId: floor.id, number: "104" } })
-    mockSession("VISUAL")
+    await mockSession("VISUAL")
     const res = await GET(getRequest("/api/rooms"))
     expect(res.status).toBe(200)
     const body = await res.json()

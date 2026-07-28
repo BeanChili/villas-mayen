@@ -28,30 +28,32 @@ import {
   PanelLeftOpen,
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { PermissionsProvider, usePermissions } from "@/components/permissions-provider"
 
+// Cada item declara su modulo: el menu solo muestra lo que el rol puede VER
 const mainNavigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Calendario", href: "/calendar", icon: Calendar },
-  { name: "Clientes", href: "/clients", icon: Users },
-  { name: "Cotizaciones", href: "/quotes", icon: FileText },
-  { name: "Inventario", href: "/inventory", icon: Package },
-  { name: "Categorías", href: "/settings/categories", icon: Tag },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, module: "dashboard" },
+  { name: "Calendario", href: "/calendar", icon: Calendar, module: "calendar" },
+  { name: "Clientes", href: "/clients", icon: Users, module: "clients" },
+  { name: "Cotizaciones", href: "/quotes", icon: FileText, module: "quotes" },
+  { name: "Inventario", href: "/inventory", icon: Package, module: "inventory" },
+  { name: "Categorías", href: "/settings/categories", icon: Tag, module: "categories" },
 ]
 
 const catalogNavigation = [
-  { name: "Ubicaciones", href: "/catalog/locations", icon: MapPin },
-  { name: "Productos", href: "/catalog/products", icon: ShoppingBag },
-  { name: "Habitaciones", href: "/rooms", icon: Home },
+  { name: "Ubicaciones", href: "/catalog/locations", icon: MapPin, module: "locations" },
+  { name: "Productos", href: "/catalog/products", icon: ShoppingBag, module: "products" },
+  { name: "Habitaciones", href: "/rooms", icon: Home, module: "rooms" },
 ]
 
 const bottomNavigation = [
-  { name: "Gastos", href: "/expenses", icon: Wallet },
-  { name: "Cobranza", href: "/reports/cobranza", icon: Coins },
-  { name: "Ocupación", href: "/reports/ocupacion", icon: CalendarRange },
-  { name: "Eventos", href: "/events", icon: Archive },
-  { name: "Cierres", href: "/reports/closings", icon: BookOpen },
-  { name: "Pantalla TV", href: "/screen", icon: Monitor },
-  { name: "Configuración", href: "/settings", icon: Settings },
+  { name: "Gastos", href: "/expenses", icon: Wallet, module: "expenses" },
+  { name: "Cobranza", href: "/reports/cobranza", icon: Coins, module: "reports_cobranza" },
+  { name: "Ocupación", href: "/reports/ocupacion", icon: CalendarRange, module: "reports_ocupacion" },
+  { name: "Eventos", href: "/events", icon: Archive, module: "events" },
+  { name: "Cierres", href: "/reports/closings", icon: BookOpen, module: "closings" },
+  { name: "Pantalla TV", href: "/screen", icon: Monitor, module: "screen" },
+  { name: "Configuración", href: "/settings", icon: Settings, module: "users" },
 ]
 
 const allNavigation = [...mainNavigation, ...catalogNavigation, ...bottomNavigation]
@@ -61,10 +63,27 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  return (
+    <PermissionsProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </PermissionsProvider>
+  )
+}
+
+function DashboardLayoutInner({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const { can, roleName } = usePermissions()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+
+  const visibleMain = mainNavigation.filter((item) => can(item.module))
+  const visibleCatalog = catalogNavigation.filter((item) => can(item.module))
+  const visibleBottom = bottomNavigation.filter((item) => can(item.module))
 
   // Recordar el estado colapsado entre sesiones
   useEffect(() => {
@@ -143,27 +162,29 @@ export default function DashboardLayout({
 
         {/* Navigation */}
         <nav className="px-3 py-4 space-y-0.5 flex-1 overflow-y-auto">
-          {mainNavigation.map((item) => {
+          {visibleMain.map((item) => {
             const isActive = pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href + "/")) ||
               (item.href === "/" && pathname === "/")
             return renderLink(item, isActive)
           })}
 
-          <div className="pt-2">
-            <div className={cn("px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2", collapsed && "lg:justify-center lg:px-0")}>
-              <BookOpen className="w-4 h-4 shrink-0" />
-              <span className={cn(collapsed && "lg:hidden")}>Catálogo</span>
+          {visibleCatalog.length > 0 && (
+            <div className="pt-2">
+              <div className={cn("px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2", collapsed && "lg:justify-center lg:px-0")}>
+                <BookOpen className="w-4 h-4 shrink-0" />
+                <span className={cn(collapsed && "lg:hidden")}>Catálogo</span>
+              </div>
+              <div className="space-y-0.5">
+                {visibleCatalog.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+                  return renderLink(item, isActive, true)
+                })}
+              </div>
             </div>
-            <div className="space-y-0.5">
-              {catalogNavigation.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-                return renderLink(item, isActive, true)
-              })}
-            </div>
-          </div>
+          )}
 
-          {bottomNavigation.map((item) => {
+          {visibleBottom.map((item) => {
             const isActive = pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href + "/")) ||
               (item.href === "/" && pathname === "/")
@@ -182,7 +203,7 @@ export default function DashboardLayout({
                 {session?.user?.name}
               </p>
               <p className="text-xs text-muted-foreground">
-                {session?.user?.role?.toLowerCase().replace("_", " ") || "usuario"}
+                {roleName || "usuario"}
               </p>
             </div>
           </div>

@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["clients", "view"], ["quotes", "view"]])
+    if (!guard.ok) return guard.error
 
     const client = await prisma.client.findUnique({
       where: { id: params.id },
@@ -46,18 +42,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "clients", "update")) {
-      return NextResponse.json(
-        { success: false, error: "No tienes permiso para actualizar clientes" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("clients", "edit")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { name, clientType, category, phone, email, address, rfc, observations } = body
@@ -91,18 +77,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "clients", "delete")) {
-      return NextResponse.json(
-        { success: false, error: "No tienes permiso para eliminar clientes" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("clients", "delete")
+    if (!guard.ok) return guard.error
 
     // Soft delete - just mark as inactive
     await prisma.client.update({

@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
+import { requireSession, requirePriceEdit } from "@/lib/permissions"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireSession()
+    if (!guard.ok) return guard.error
 
     const rate = await prisma.exchangeRate.findFirst({
       orderBy: { createdAt: "desc" },
@@ -23,10 +20,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    // El tipo de cambio afecta todos los precios: requiere el permiso
+    // transversal de precios (antes no habia ningun guard)
+    const guard = await requirePriceEdit()
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { rate } = body
@@ -40,7 +37,7 @@ export async function POST(request: NextRequest) {
         fromCurrency: "USD",
         toCurrency: "GTQ",
         rate,
-        updatedBy: session.user?.name || "admin",
+        updatedBy: guard.session.user?.name || "admin",
       },
     })
 

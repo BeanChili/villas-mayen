@@ -6,7 +6,8 @@ import prisma from './db'
 interface ExtendedToken {
   id: string
   username: string
-  role: string
+  roleId?: string
+  roleName?: string
 }
 
 export const authOptions: NextAuthOptions = {
@@ -23,7 +24,8 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: { username: credentials.username }
+          where: { username: credentials.username },
+          include: { role: true },
         })
 
         if (!user || !user.active) {
@@ -41,7 +43,8 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           email: user.email || '',
           username: user.username,
-          role: user.role,
+          roleId: user.roleId,
+          roleName: user.role?.name || '',
         }
       }
     })
@@ -51,16 +54,32 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id
         token.username = (user as any).username
-        token.role = (user as any).role
+        token.roleId = (user as any).roleId
+        token.roleName = (user as any).roleName
       }
+
+      // Tokens emitidos antes del sistema de roles no traen roleId:
+      // se resuelve una vez desde la base y queda en el token.
+      if (!token.roleId && token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          include: { role: true },
+        })
+        if (dbUser) {
+          token.roleId = dbUser.roleId
+          token.roleName = dbUser.role?.name || ''
+        }
+      }
+
       return token
     },
     async session({ session, token }) {
-      const extendedToken = token as ExtendedToken
+      const extendedToken = token as unknown as ExtendedToken
       if (session.user) {
         session.user.id = extendedToken.id
         session.user.username = extendedToken.username
-        session.user.role = extendedToken.role
+        session.user.roleId = extendedToken.roleId || ''
+        session.user.roleName = extendedToken.roleName || ''
       }
       return session
     }

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, invalidatePermissionCache } from "@/lib/permissions"
 import bcrypt from "bcryptjs"
 
 export async function GET(
@@ -10,10 +8,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["users", "view"]])
+    if (!guard.ok) return guard.error
 
     const user = await prisma.user.findUnique({
       where: { id: params.id },
@@ -23,7 +19,8 @@ export async function GET(
         username: true,
         email: true,
         phone: true,
-        role: true,
+        roleId: true,
+        role: { select: { id: true, key: true, name: true } },
         active: true,
         createdAt: true,
       },
@@ -48,28 +45,25 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "users", "update")) {
-      return NextResponse.json(
-        { error: "No tienes permiso para actualizar usuarios" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("users", "edit")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
-    const { name, email, phone, role: userRole, active } = body
+    const { name, email, phone, roleId, active } = body
 
     const updateData: any = {
       name,
       email,
       phone,
-      role: userRole,
       active,
+    }
+
+    if (roleId) {
+      const role = await prisma.role.findUnique({ where: { id: roleId } })
+      if (!role) {
+        return NextResponse.json({ error: "Rol inválido" }, { status: 400 })
+      }
+      updateData.roleId = roleId
     }
 
     // If password is provided, hash it
@@ -86,10 +80,14 @@ export async function PUT(
         username: true,
         email: true,
         phone: true,
-        role: true,
+        roleId: true,
+        role: { select: { id: true, key: true, name: true } },
         active: true,
       },
     })
+
+    // El cambio de rol impacta en menos de 30 segundos, sin re-login
+    invalidatePermissionCache(params.id)
 
     return NextResponse.json(user)
   } catch (error) {
@@ -106,18 +104,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "users", "update")) {
-      return NextResponse.json(
-        { error: "No tienes permiso para actualizar usuarios" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("users", "edit")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { active } = body
@@ -148,24 +136,17 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "users", "delete")) {
-      return NextResponse.json(
-        { error: "No tienes permiso para eliminar usuarios" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("users", "delete")
+    if (!guard.ok) return guard.error
 
     // Soft delete - just mark as inactive
     await prisma.user.update({
       where: { id: params.id },
       data: { active: false },
     })
+
+    // Un usuario desactivado pierde acceso en menos de 30 segundos
+    invalidatePermissionCache(params.id)
 
     return NextResponse.json({ success: true })
   } catch (error) {

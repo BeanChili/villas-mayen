@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 import bcrypt from "bcryptjs"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["users", "view"]])
+    if (!guard.ok) return guard.error
 
     const users = await prisma.user.findMany({
       select: {
@@ -19,10 +15,10 @@ export async function GET(request: NextRequest) {
         username: true,
         email: true,
         phone: true,
-        role: true,
+        roleId: true,
+        role: { select: { id: true, key: true, name: true } },
         active: true,
         createdAt: true,
-        password: false,
       },
       orderBy: { name: "asc" },
     })
@@ -39,27 +35,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "users", "create")) {
-      return NextResponse.json(
-        { error: "No tienes permiso para crear usuarios" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("users", "create")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
-    const { name, username, password, email, phone, role: userRole, active } = body
+    const { name, username, password, email, phone, roleId, active } = body
 
-    if (!name || !username || !password) {
+    if (!name || !username || !password || !roleId) {
       return NextResponse.json(
         { error: "Faltan campos requeridos" },
         { status: 400 }
       )
+    }
+
+    const role = await prisma.role.findUnique({ where: { id: roleId } })
+    if (!role) {
+      return NextResponse.json({ error: "Rol inválido" }, { status: 400 })
     }
 
     // Check if username already exists
@@ -83,7 +74,7 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         email,
         phone,
-        role: userRole || "VISUAL",
+        roleId,
         active: active ?? true,
       },
       select: {
@@ -92,7 +83,8 @@ export async function POST(request: NextRequest) {
         username: true,
         email: true,
         phone: true,
-        role: true,
+        roleId: true,
+        role: { select: { id: true, key: true, name: true } },
         active: true,
         createdAt: true,
       },

@@ -49,7 +49,7 @@ describe("api/quotes", () => {
   it("RECEPCIONISTA crea una cotizacion con totales calculados en el server", async () => {
     const cliente = await createTestClient()
     const ubicacion = await createTestLocation()
-    mockSession("RECEPCIONISTA")
+    await mockSession("RECEPCIONISTA")
 
     const res = await crearCotizacionPorApi(cliente.id, ubicacion.id)
     expect(res.status).toBe(201)
@@ -63,7 +63,7 @@ describe("api/quotes", () => {
 
   it("VISUAL no puede crear cotizaciones (403)", async () => {
     const cliente = await createTestClient()
-    mockSession("VISUAL")
+    await mockSession("VISUAL")
     const res = await POST(
       jsonRequest("POST", "/api/quotes", {
         clientId: cliente.id,
@@ -76,7 +76,7 @@ describe("api/quotes", () => {
 
   it("crear sin spaces devuelve 400", async () => {
     const cliente = await createTestClient()
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
     const res = await POST(
       jsonRequest("POST", "/api/quotes", {
         clientId: cliente.id,
@@ -89,7 +89,7 @@ describe("api/quotes", () => {
 
   it("USD sin tipo de cambio devuelve 400", async () => {
     const cliente = await createTestClient()
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
     const res = await POST(
       jsonRequest("POST", "/api/quotes", {
         clientId: cliente.id,
@@ -106,7 +106,7 @@ describe("api/quotes/[id]/status", () => {
   it("BORRADOR pasa a ENVIADA y registra sentAt", async () => {
     const cliente = await createTestClient()
     const quote = await createTestQuote(cliente.id)
-    mockSession("RECEPCIONISTA")
+    await mockSession("RECEPCIONISTA")
 
     const res = await patchStatus(
       jsonRequest("PATCH", `/api/quotes/${quote.id}/status`, { status: "ENVIADA" }),
@@ -121,7 +121,7 @@ describe("api/quotes/[id]/status", () => {
   it("una transicion invalida devuelve 400", async () => {
     const cliente = await createTestClient()
     const quote = await createTestQuote(cliente.id, { status: "BORRADOR" })
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
 
     const res = await patchStatus(
       jsonRequest("PATCH", `/api/quotes/${quote.id}/status`, { status: "FINALIZADA" }),
@@ -133,7 +133,7 @@ describe("api/quotes/[id]/status", () => {
   })
 
   it("cotizacion inexistente devuelve 404", async () => {
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
     const res = await patchStatus(
       jsonRequest("PATCH", "/api/quotes/nope/status", { status: "ENVIADA" }),
       { params: { id: "nope" } }
@@ -150,11 +150,11 @@ describe("api/quotes/[id]/payments", () => {
       totalAmount: 1000,
       pendingAmount: 1000,
     })
-    mockSession("RECEPCIONISTA")
+    await mockSession("RECEPCIONISTA")
 
     const res = await postPayment(
       jsonRequest("POST", `/api/quotes/${quote.id}/payments`, { amount: 400 }),
-      { params: { id: quote.id } }
+      { params: Promise.resolve({ id: quote.id }) }
     )
     expect(res.status).toBe(200)
     const actualizada = await prisma.quote.findUnique({
@@ -175,11 +175,11 @@ describe("api/quotes/[id]/payments", () => {
       pendingAmount: 100,
       paidAmount: 900,
     })
-    mockSession("ADMIN")
+    await mockSession("ADMIN")
 
     const res = await postPayment(
       jsonRequest("POST", `/api/quotes/${quote.id}/payments`, { amount: 500 }),
-      { params: { id: quote.id } }
+      { params: Promise.resolve({ id: quote.id }) }
     )
     expect(res.status).toBe(400)
   })

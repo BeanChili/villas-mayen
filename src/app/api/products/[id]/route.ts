@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["products", "view"], ["quotes", "view"]])
+    if (!guard.ok) return guard.error
 
     const product = await prisma.product.findUnique({
       where: { id: params.id },
@@ -37,18 +33,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "inventory", "update")) {
-      return NextResponse.json(
-        { success: false, error: "No tienes permiso para actualizar productos" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("inventory", "edit")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const {
@@ -105,18 +91,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "inventory", "delete")) {
-      return NextResponse.json(
-        { success: false, error: "No tienes permiso para eliminar productos" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("inventory", "delete")
+    if (!guard.ok) return guard.error
 
     await prisma.product.delete({
       where: { id: params.id },

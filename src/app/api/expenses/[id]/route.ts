@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "expenses", "update")) {
-      return NextResponse.json(
-        { error: "No tienes permiso para actualizar gastos" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("expenses", "edit")
+    if (!guard.ok) return guard.error
 
     const existing = await prisma.expense.findUnique({ where: { id: params.id } })
     if (!existing) {
@@ -64,18 +52,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "expenses", "delete")) {
-      return NextResponse.json(
-        { error: "No tienes permiso para eliminar gastos" },
-        { status: 403 }
-      )
-    }
+    const guard = await requirePermission("expenses", "delete")
+    if (!guard.ok) return guard.error
 
     const existing = await prisma.expense.findUnique({ where: { id: params.id } })
     if (!existing) {

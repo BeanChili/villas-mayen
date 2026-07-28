@@ -18,20 +18,20 @@ const muebleBase = {
 
 describe("api/furniture", () => {
   it("ALMACEN crea mobiliario", async () => {
-    mockSession("ALMACEN")
+    await mockSession("ALMACEN")
     const res = await POST(jsonRequest("POST", "/api/furniture", muebleBase))
     expect(res.status).toBe(201)
   })
 
   it("numero de inventario duplicado devuelve 409", async () => {
-    mockSession("ALMACEN")
+    await mockSession("ALMACEN")
     await POST(jsonRequest("POST", "/api/furniture", muebleBase))
     const dup = await POST(jsonRequest("POST", "/api/furniture", muebleBase))
     expect(dup.status).toBe(409)
   })
 
   it("editar mobiliario funciona (ruta [id] nueva, antes 404)", async () => {
-    mockSession("ALMACEN")
+    await mockSession("ALMACEN")
     await POST(jsonRequest("POST", "/api/furniture", muebleBase))
     const mueble = await prisma.furniture.findFirst()
 
@@ -51,7 +51,7 @@ describe("api/furniture", () => {
   })
 
   it("editar hacia un numero de inventario ya usado devuelve 409", async () => {
-    mockSession("ALMACEN")
+    await mockSession("ALMACEN")
     await POST(jsonRequest("POST", "/api/furniture", muebleBase))
     await POST(
       jsonRequest("POST", "/api/furniture", { ...muebleBase, inventoryNumber: "MESA-101" })
@@ -68,17 +68,17 @@ describe("api/furniture", () => {
   })
 
   it("VISUAL no puede eliminar (403); ALMACEN si", async () => {
-    mockSession("ALMACEN")
+    await mockSession("ALMACEN")
     await POST(jsonRequest("POST", "/api/furniture", muebleBase))
     const mueble = await prisma.furniture.findFirst()
 
-    mockSession("VISUAL")
+    await mockSession("VISUAL")
     const denegado = await DELETE(getRequest(`/api/furniture/${mueble!.id}`), {
       params: { id: mueble!.id },
     })
     expect(denegado.status).toBe(403)
 
-    mockSession("ALMACEN")
+    await mockSession("ALMACEN")
     const ok = await DELETE(getRequest(`/api/furniture/${mueble!.id}`), {
       params: { id: mueble!.id },
     })

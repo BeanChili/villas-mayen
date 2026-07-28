@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 import { isValidTransition } from "@/lib/utils"
 
 export async function PATCH(
@@ -10,15 +8,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "quotes", "update")) {
-      return NextResponse.json({ success: false, error: "Sin permiso" }, { status: 403 })
-    }
+    const guard = await requirePermission("quotes", "edit")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { status, advancePayment } = body
@@ -44,7 +35,7 @@ export async function PATCH(
     }
 
     const now = new Date()
-    const createdByName = session.user?.name ?? "Usuario"
+    const createdByName = guard.session.user?.name ?? "Usuario"
 
     // CONFIRMADA → actualizar Quote con datos de pago
     if (status === "CONFIRMADA") {

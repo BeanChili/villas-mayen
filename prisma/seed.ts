@@ -3,25 +3,126 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
+// Permisos por modulo: [canView, canCreate, canEdit, canDelete]
+type Matriz = Record<string, [boolean, boolean, boolean, boolean]>
+
+const V: [boolean, boolean, boolean, boolean] = [true, false, false, false]
+const VCE: [boolean, boolean, boolean, boolean] = [true, true, true, false]
+const VCED: [boolean, boolean, boolean, boolean] = [true, true, true, true]
+
+// CONTADOR (Benjamin): cotiza, ve cierres y liquida. No cambia precios ni
+// toca usuarios ni gastos.
+const matrizContador: Matriz = {
+  dashboard: V,
+  calendar: V,
+  clients: VCE,
+  quotes: VCE,
+  sellers: V,
+  inventory: V,
+  products: V,
+  locations: V,
+  rooms: V,
+  categories: V,
+  events: VCE, // liquidacion
+  closings: V,
+  reports_cobranza: V,
+  reports_ocupacion: V,
+  screen: V,
+}
+
+// FINANZAS_RESTRINGIDO (Eric): gastos + lo mismo que el contador pero sin
+// ventas (cotizaciones), cierres ni liquidacion. Sin dashboard porque el
+// dashboard muestra facturacion; la raiz lo redirige a Gastos.
+const matrizFinanzasRestringido: Matriz = {
+  calendar: V,
+  clients: VCE,
+  sellers: V,
+  inventory: V,
+  products: V,
+  locations: V,
+  rooms: V,
+  categories: V,
+  expenses: VCED,
+  reports_ocupacion: V,
+  screen: V,
+}
+
+async function upsertRoleConMatriz(opts: {
+  key: string
+  name: string
+  description: string
+  matriz: Matriz
+  canEditPrices?: boolean
+}) {
+  // update: {} a proposito: el seed corre en cada deploy y NO debe pisar
+  // matrices que el cliente haya customizado desde el ABM de roles
+  return prisma.role.upsert({
+    where: { key: opts.key },
+    update: {},
+    create: {
+      key: opts.key,
+      name: opts.name,
+      description: opts.description,
+      canEditPrices: opts.canEditPrices ?? false,
+      permissions: {
+        create: Object.entries(opts.matriz).map(([module, [canView, canCreate, canEdit, canDelete]]) => ({
+          module,
+          canView,
+          canCreate,
+          canEdit,
+          canDelete,
+        })),
+      },
+    },
+  })
+}
+
 async function main() {
   console.log('Starting seed v2...')
 
+  // ==================== ROLES ====================
+  // Los 7 roles base los crea la migracion roles_system; aca solo se asegura
+  // que existan (en una base nueva la migracion ya los dejo). Se agregan los
+  // dos roles pedidos por el cliente.
+  const contador = await upsertRoleConMatriz({
+    key: 'CONTADOR',
+    name: 'Contador',
+    description: 'Cotiza, ve cierres y liquida. No modifica precios ni usuarios.',
+    matriz: matrizContador,
+  })
+  const finanzasRestringido = await upsertRoleConMatriz({
+    key: 'FINANZAS_RESTRINGIDO',
+    name: 'Finanzas Restringido',
+    description: 'Gestiona gastos y consulta, sin ventas, cierres ni liquidaciones.',
+    matriz: matrizFinanzasRestringido,
+  })
+  console.log('Roles listos:', contador.name, '/', finanzasRestringido.name)
+
+  const roleByKey = async (key: string) => {
+    const role = await prisma.role.findUnique({ where: { key } })
+    if (!role) throw new Error(`Rol ${key} no encontrado: correr las migraciones primero`)
+    return role
+  }
+
   // ==================== USUARIOS ====================
   const hashedPassword = await bcrypt.hash('admin123', 10)
-  
+
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     update: {},
-    create: { name: 'Administrador', username: 'admin', password: hashedPassword, email: 'admin@villasmayen.com', role: 'ADMIN', active: true },
+    create: { name: 'Administrador', username: 'admin', password: hashedPassword, email: 'admin@villasmayen.com', roleId: (await roleByKey('SUPERADMIN')).id, active: true },
   })
   console.log('Created admin:', admin.username)
 
   const testRoleUsers = [
-    { username: 'recepcionista', name: 'Recepcionista Test', role: 'RECEPCIONISTA', password: 'recepcionista123' },
-    { username: 'finanzas', name: 'Finanzas Test', role: 'FINANZAS', password: 'finanzas123' },
-    { username: 'almacen', name: 'Almacen Test', role: 'ALMACEN', password: 'almacen123' },
-    { username: 'visual', name: 'Visual Test', role: 'VISUAL', password: 'visual123' },
-    { username: 'encargado', name: 'Encargado Test', role: 'ENCARGADO_EVENTO', password: 'encargado123' },
+    { username: 'recepcionista', name: 'Recepcionista Test', roleKey: 'RECEPCIONISTA', password: 'recepcionista123' },
+    { username: 'finanzas', name: 'Finanzas Test', roleKey: 'FINANZAS', password: 'finanzas123' },
+    { username: 'almacen', name: 'Almacen Test', roleKey: 'ALMACEN', password: 'almacen123' },
+    { username: 'visual', name: 'Visual Test', roleKey: 'VISUAL', password: 'visual123' },
+    { username: 'encargado', name: 'Encargado Test', roleKey: 'ENCARGADO_EVENTO', password: 'encargado123' },
+    // Usuarios pedidos por el cliente (avisarle que cambie las passwords)
+    { username: 'benjamin', name: 'Benjamin', roleKey: 'CONTADOR', password: 'benjamin123' },
+    { username: 'eric', name: 'Eric', roleKey: 'FINANZAS_RESTRINGIDO', password: 'eric123' },
   ]
 
   for (const u of testRoleUsers) {
@@ -29,7 +130,7 @@ async function main() {
     await prisma.user.upsert({
       where: { username: u.username },
       update: {},
-      create: { name: u.name, username: u.username, password: hashed, email: `${u.username}@villasmayen.com`, role: u.role as any, active: true },
+      create: { name: u.name, username: u.username, password: hashed, email: `${u.username}@villasmayen.com`, roleId: (await roleByKey(u.roleKey)).id, active: true },
     })
     console.log(`  ${u.username}`)
   }

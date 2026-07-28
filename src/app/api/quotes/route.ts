@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
+    const guard = await requireAnyPermission([["quotes", "view"], ["calendar", "view"], ["dashboard", "view"], ["screen", "view"], ["events", "view"], ["closings", "view"], ["reports_cobranza", "view"]])
+    if (!guard.ok) return guard.error
 
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
@@ -42,15 +38,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = (session.user as any).role as any
-    if (!hasPermission(role, "quotes", "create")) {
-      return NextResponse.json({ success: false, error: "Sin permiso" }, { status: 403 })
-    }
+    const guard = await requirePermission("quotes", "create")
+    if (!guard.ok) return guard.error
 
     const body = await request.json()
     const { clientId, eventDate, endDate, currency, exchangeRate, guestCount, spaces, notes, items, eventTitle, parkingSpot } = body

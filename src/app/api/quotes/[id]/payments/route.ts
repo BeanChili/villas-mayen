@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/db"
-import { hasPermission } from "@/types"
+import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 })
-    }
-
-    const role = session.user.role as any
-    if (!hasPermission(role, "quotes", "update")) {
-      return NextResponse.json({ success: false, error: "No tienes permiso para registrar pagos" }, { status: 403 })
-    }
+    const guard = await requirePermission("quotes", "edit")
+    if (!guard.ok) return guard.error
 
     const { id } = await params
     const body = await request.json()
@@ -42,7 +33,7 @@ export async function POST(
     }
 
     const safeAmount = Math.min(amount, currentPending)
-    const createdByName = session.user?.name ?? "Usuario"
+    const createdByName = guard.session.user?.name ?? "Usuario"
 
     const updatedQuote = await prisma.$transaction(async (tx) => {
       await tx.payment.create({
