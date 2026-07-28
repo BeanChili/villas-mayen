@@ -148,10 +148,14 @@ async function main() {
   console.log(`Created ${products.length} products`)
 
   // ==================== TIPO DE CAMBIO ====================
-  await prisma.exchangeRate.create({
-    data: { fromCurrency: 'USD', toCurrency: 'GTQ', rate: 7.85, updatedBy: 'admin' },
-  })
-  console.log('Created exchange rate: 1 USD = 7.85 GTQ')
+  // Solo si no hay ninguno: el seed corre en cada deploy y no debe acumular filas
+  const existingRate = await prisma.exchangeRate.findFirst()
+  if (!existingRate) {
+    await prisma.exchangeRate.create({
+      data: { fromCurrency: 'USD', toCurrency: 'GTQ', rate: 7.85, updatedBy: 'admin' },
+    })
+    console.log('Created exchange rate: 1 USD = 7.85 GTQ')
+  }
 
   // ==================== MOBILIARIO ====================
   const furnitureItems = [
