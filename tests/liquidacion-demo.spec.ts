@@ -61,6 +61,14 @@ test.describe("Demo: Proceso de Liquidación", () => {
     const furnitureButton = furniturePanel.locator('button[type="button"]').first();
     if (await furnitureButton.isVisible().catch(() => false)) {
       await furnitureButton.click();
+      // Se abre el dialogo de mobiliario (cantidades por día): cargar una cantidad y confirmar
+      const furnitureDialog = page.locator('[role="dialog"]').filter({ hasText: "cantidad para cada día" });
+      await expect(furnitureDialog).toBeVisible({ timeout: 5000 });
+      await page.waitForTimeout(500);
+      await furnitureDialog.locator('input[type="number"]').first().fill("2");
+      await page.waitForTimeout(300);
+      await furnitureDialog.locator("button").filter({ hasText: /^Agregar$/ }).click();
+      await expect(furnitureDialog).toBeHidden({ timeout: 5000 });
       await page.waitForTimeout(500);
     }
 
@@ -74,6 +82,13 @@ test.describe("Demo: Proceso de Liquidación", () => {
     await expect(quoteRow).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(800);
     await quoteRow.locator('button[title="Enviar"]').first().click();
+
+    // Confirmar el dialogo "Registrar Envío" (sin mail: solo marca como enviada)
+    const sendDialog = page.locator('[role="dialog"]').filter({ hasText: "Registrar Envío" });
+    await expect(sendDialog).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(800);
+    await sendDialog.locator('button:has-text("Registrar envío")').click();
+    await expect(sendDialog).toBeHidden({ timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // ── 3. Cambiar estado: Enviada -> Confirmada (con anticipo) ────────────

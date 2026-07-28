@@ -52,7 +52,7 @@ test.describe('Dashboard', () => {
     test('should display all 4 main stat cards', async ({ page }) => {
       await page.waitForLoadState('networkidle');
       
-      await expect(page.locator('text=Reservaciones del Mes')).toBeVisible();
+      await expect(page.locator('text=Cotizaciones del Mes')).toBeVisible();
       await expect(page.locator('text=Eventos Hoy')).toBeVisible();
       await expect(page.locator('text=Clientes Nuevos')).toBeVisible();
       await expect(page.locator('text=Gastos del Mes')).toBeVisible();
@@ -90,9 +90,9 @@ test.describe('Dashboard', () => {
       await page.waitForLoadState('networkidle');
       
       await page.click('text=Ver Reservaciones');
-      await page.waitForURL('**/reservations');
-      
-      await expect(page.locator('main h1:has-text("Reservaciones")')).toBeVisible();
+      await page.waitForURL('**/calendar');
+
+      await expect(page.locator('main h1:has-text("Calendario de Eventos")')).toBeVisible();
     });
 
     test('should navigate to clients from quick action', async ({ page }) => {
@@ -184,8 +184,8 @@ test.describe('Dashboard', () => {
       await page.waitForLoadState('networkidle');
       
       // Get current stats
-      const reservationsCard = page.locator('text=Reservaciones del Mes').first();
-      await expect(reservationsCard).toBeVisible();
+      const quotesCard = page.locator('text=Cotizaciones del Mes').first();
+      await expect(quotesCard).toBeVisible();
       
       // Refresh page
       await page.reload();
@@ -208,7 +208,7 @@ test.describe('Dashboard', () => {
     test('should show all navigation items in sidebar', async ({ page }) => {
       await page.waitForLoadState('networkidle');
       
-      const sidebarItems = ['Reservaciones', 'Clientes', 'Cotizaciones', 'Inventario', 'Gastos', 'Eventos', 'Configuración'];
+      const sidebarItems = ['Calendario', 'Clientes', 'Cotizaciones', 'Inventario', 'Gastos', 'Eventos', 'Configuración'];
       
       for (const item of sidebarItems) {
         await expect(page.locator(`nav a:has-text("${item}")`)).toBeVisible();
@@ -235,7 +235,7 @@ test.describe('Dashboard - Role Variations', () => {
     await page.waitForLoadState('networkidle');
     
     await expect(page.locator('h2:has-text("Bienvenido")')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=Reservaciones del Mes')).toBeVisible();
+    await expect(page.locator('text=Cotizaciones del Mes')).toBeVisible();
   });
 
   test('should display dashboard correctly for visual role', async ({ page }) => {
@@ -243,6 +243,6 @@ test.describe('Dashboard - Role Variations', () => {
     await page.waitForLoadState('networkidle');
     
     await expect(page.locator('h2:has-text("Bienvenido")')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=Reservaciones del Mes')).toBeVisible();
+    await expect(page.locator('text=Cotizaciones del Mes')).toBeVisible();
   });
 });

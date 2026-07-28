@@ -12,8 +12,26 @@ import type { Page } from "@playwright/test";
 const confirmarRegistroEnvio = async (page: Page) => {
   const sendDialog = page.locator('[role="dialog"]').filter({ hasText: 'Registrar Envío' });
   await expect(sendDialog).toBeVisible({ timeout: 5000 });
-  await sendDialog.locator('button:has-text("Registrar envío")').click();
-  await expect(sendDialog).toBeHidden({ timeout: 10000 });
+  const registrarBtn = sendDialog.locator('button:has-text("Registrar envío")');
+  await registrarBtn.click();
+  try {
+    await expect(sendDialog).toBeHidden({ timeout: 5000 });
+  } catch {
+    // Reintento: el primer click puede perderse si el dialogo seguia montandose
+    await registrarBtn.click();
+    await expect(sendDialog).toBeHidden({ timeout: 10000 });
+  }
+  await page.waitForTimeout(300);
+};
+
+// Confirmar abre el dialogo "Confirmar Cotización" (anticipo); se resuelve
+// eligiendo "Sin anticipo" y confirmando en el footer
+const confirmarSinAnticipo = async (page: Page) => {
+  const advanceDialog = page.locator('[role="dialog"]').filter({ hasText: 'Confirmar Cotización' });
+  await expect(advanceDialog).toBeVisible({ timeout: 5000 });
+  await advanceDialog.locator('button:has-text("Sin anticipo")').click();
+  await advanceDialog.locator('button').filter({ hasText: /^Confirmar$/ }).click();
+  await expect(advanceDialog).toBeHidden({ timeout: 10000 });
   await page.waitForTimeout(300);
 };
 test.describe('Quotes', () => {
@@ -80,8 +98,8 @@ test.describe('Quotes', () => {
       await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
       await page.waitForTimeout(500);
 
-      // Verify quote appears in list
-      await expect(page.locator(`text=${clientName}`).first()).toBeVisible();
+      // Verify quote appears in list (el filtro de clientes duplica el nombre en un <option> oculto)
+      await expect(page.locator('tbody tr').filter({ hasText: clientName }).first()).toBeVisible();
       console.log('✓ Quote with multiple spaces created');
     });
 
@@ -152,7 +170,7 @@ test.describe('Quotes', () => {
       await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
       await page.waitForTimeout(500);
 
-      await expect(page.locator(`text=${clientName}`).first()).toBeVisible();
+      await expect(page.locator('tbody tr').filter({ hasText: clientName }).first()).toBeVisible();
       console.log('✓ Quote with COMIDA_MENU product created');
     });
   });
@@ -195,15 +213,15 @@ test.describe('Quotes', () => {
       await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
       await page.waitForTimeout(500);
 
-      // Send the quote
-      const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
-      await expect(borradorRow).toBeVisible({ timeout: 5000 });
-      const sendButton = borradorRow.locator('button[title="Enviar"]').first();
+      // Send the quote (fila propia por nombre de cliente: corre en paralelo con otros tests)
+      const quoteRow = page.locator('tbody tr').filter({ hasText: clientName }).first();
+      await expect(quoteRow).toBeVisible({ timeout: 5000 });
+      const sendButton = quoteRow.locator('button[title="Enviar"]').first();
       await sendButton.click();
       await confirmarRegistroEnvio(page);
 
       // Verify status changed to ENVIADA
-      await expect(page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first()).toBeVisible({ timeout: 10000 });
+      await expect(quoteRow.locator('text=Enviada a Cliente')).toBeVisible({ timeout: 10000 });
       console.log('✓ Quote sent: BORRADOR → ENVIADA');
     });
 
@@ -244,24 +262,24 @@ test.describe('Quotes', () => {
       await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
       await page.waitForTimeout(500);
 
-      // Send the quote
-      const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
-      const sendButton = borradorRow.locator('button[title="Enviar"]').first();
+      // Send the quote (fila propia por nombre de cliente: corre en paralelo con otros tests)
+      const quoteRow = page.locator('tbody tr').filter({ hasText: clientName }).first();
+      await expect(quoteRow).toBeVisible({ timeout: 5000 });
+      const sendButton = quoteRow.locator('button[title="Enviar"]').first();
       await sendButton.click();
       await confirmarRegistroEnvio(page);
 
       // Confirm the quote
-      const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first();
-      await expect(enviadaRow).toBeVisible({ timeout: 10000 });
-      const confirmButton = enviadaRow.locator('button[title="Confirmar"]').first();
+      await expect(quoteRow.locator('text=Enviada a Cliente')).toBeVisible({ timeout: 10000 });
+      const confirmButton = quoteRow.locator('button[title="Confirmar"]').first();
       await confirmButton.click();
-      await page.waitForTimeout(500);
+      await confirmarSinAnticipo(page);
 
       // Verify status changed to CONFIRMADA
-      await expect(page.locator('tbody tr').filter({ hasText: 'Confirmada / Pago Anticipo' }).first()).toBeVisible({ timeout: 10000 });
+      await expect(quoteRow.locator('text=Confirmada / Pago Anticipo')).toBeVisible({ timeout: 10000 });
 
       // Verify reservation was created by checking the quote detail
-      const confirmedRow = page.locator('tbody tr').filter({ hasText: 'Confirmada / Pago Anticipo' }).first();
+      const confirmedRow = quoteRow;
       await confirmedRow.click();
       await page.waitForTimeout(500);
       const detailDialog = page.locator('[role="dialog"]').filter({ hasText: 'Detalle de Cotización' }).first();
@@ -308,14 +326,14 @@ test.describe('Quotes', () => {
       await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
       await page.waitForTimeout(500);
 
-      // Send the quote
-      const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
-      await borradorRow.locator('button[title="Enviar"]').first().click();
+      // Send the quote (fila propia por nombre de cliente: corre en paralelo con otros tests)
+      const quoteRow = page.locator('tbody tr').filter({ hasText: clientName }).first();
+      await expect(quoteRow).toBeVisible({ timeout: 5000 });
+      await quoteRow.locator('button[title="Enviar"]').first().click();
       await confirmarRegistroEnvio(page);
 
-      // Get quote ID from the ENVIADA row
-      const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first();
-      await expect(enviadaRow).toBeVisible({ timeout: 10000 });
+      // Verify the quote is now ENVIADA
+      await expect(quoteRow.locator('text=Enviada a Cliente')).toBeVisible({ timeout: 10000 });
 
       // Click to open detail and extract quote ID from URL or DOM
       // Since the row itself doesn't expose the ID easily, we'll use the API to find it
@@ -338,8 +356,8 @@ test.describe('Quotes', () => {
       await page.waitForLoadState('networkidle');
 
       // Verify status is NO_CONFIRMADA
-      const noConfRow = page.locator('tbody tr').filter({ hasText: 'No Confirmada' }).first();
-      await expect(noConfRow).toBeVisible({ timeout: 10000 });
+      const noConfRow = page.locator('tbody tr').filter({ hasText: clientName }).first();
+      await expect(noConfRow.locator('text=No Confirmada')).toBeVisible({ timeout: 10000 });
       console.log('✓ Quote auto-expired: ENVIADA → NO_CONFIRMADA');
 
       // Re-send (NO_CONFIRMADA → ENVIADA)
@@ -347,7 +365,7 @@ test.describe('Quotes', () => {
       await reSendButton.click();
       await confirmarRegistroEnvio(page);
 
-      await expect(page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first()).toBeVisible({ timeout: 10000 });
+      await expect(noConfRow.locator('text=Enviada a Cliente')).toBeVisible({ timeout: 10000 });
       console.log('✓ Quote re-sent: NO_CONFIRMADA → ENVIADA');
     });
 
@@ -388,27 +406,27 @@ test.describe('Quotes', () => {
       await page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 15000 }).catch(() => page.keyboard.press('Escape'));
       await page.waitForTimeout(500);
 
-      // Send
-      const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
-      await borradorRow.locator('button[title="Enviar"]').first().click();
+      // Send (fila propia por nombre de cliente: corre en paralelo con otros tests)
+      const quoteRow = page.locator('tbody tr').filter({ hasText: clientName }).first();
+      await expect(quoteRow).toBeVisible({ timeout: 5000 });
+      await quoteRow.locator('button[title="Enviar"]').first().click();
       await confirmarRegistroEnvio(page);
 
       // Confirm
-      const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first();
-      await enviadaRow.locator('button[title="Confirmar"]').first().click();
-      await page.waitForTimeout(500);
+      await expect(quoteRow.locator('text=Enviada a Cliente')).toBeVisible({ timeout: 10000 });
+      await quoteRow.locator('button[title="Confirmar"]').first().click();
+      await confirmarSinAnticipo(page);
 
       // Cancel the confirmed quote
-      const confirmedRow = page.locator('tbody tr').filter({ hasText: 'Confirmada / Pago Anticipo' }).first();
-      await expect(confirmedRow).toBeVisible({ timeout: 10000 });
-      const cancelButton = confirmedRow.locator('button[title="Cancelar"]').first();
+      await expect(quoteRow.locator('text=Confirmada / Pago Anticipo')).toBeVisible({ timeout: 10000 });
+      const cancelButton = quoteRow.locator('button[title="Eliminar Cotización"]').first();
 
       // Handle confirmation dialog
       page.once('dialog', async d => { await d.accept(); });
       await cancelButton.click();
       await page.waitForTimeout(500);
 
-      await expect(page.locator('tbody tr').filter({ hasText: 'Cancelado' }).first()).toBeVisible({ timeout: 10000 });
+      await expect(quoteRow.locator('text=Cancelado')).toBeVisible({ timeout: 10000 });
       console.log('✓ Quote cancelled: CONFIRMADA → CANCELADO');
     });
 

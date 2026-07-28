@@ -211,7 +211,7 @@ export const getStatusColor = (status: string): string => {
 
 export const getQuoteStatusColor = (status: string): string => {
   const colors: Record<string, string> = {
-    BORRADOR: '#9ca3af',
+    BORRADOR: '#ca8a04',
     ENVIADA: '#6b7280',
     NO_CONFIRMADA: '#ef4444',
     CONFIRMADA: '#22c55e',

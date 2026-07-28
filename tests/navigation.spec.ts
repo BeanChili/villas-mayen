@@ -12,7 +12,7 @@ test.describe('Navigation', () => {
 
   test.describe('Sidebar Navigation', () => {
     test('should display sidebar with all menu items', async ({ page }) => {
-      // Dashboard has no sidebar â€” navigate to internal page first
+      // Dashboard has no sidebar - navigate to internal page first
       await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
@@ -29,7 +29,7 @@ test.describe('Navigation', () => {
         'Inventario',
         'Gastos',
         'Eventos',
-        'ConfiguraciÃ³n',
+        'Configuración',
       ];
 
       for (const item of mainNavItems) {
@@ -118,17 +118,17 @@ test.describe('Navigation', () => {
       await expect(page.locator('main h1:has-text("Eventos")')).toBeVisible();
     });
 
-    test('should navigate to ConfiguraciÃ³n', async ({ page }) => {
+    test('should navigate to Configuración', async ({ page }) => {
       await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      await page.click('aside a:has-text("ConfiguraciÃ³n")');
+      await page.click('aside a:has-text("Configuración")');
       await page.waitForURL('/settings');
 
-      await expect(page.locator('main h1:has-text("ConfiguraciÃ³n")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Configuración")')).toBeVisible();
     });
 
-    test('should navigate to Ubicaciones (CatÃ¡logo)', async ({ page }) => {
+    test('should navigate to Ubicaciones (Catálogo)', async ({ page }) => {
       await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
@@ -138,7 +138,7 @@ test.describe('Navigation', () => {
       await expect(page.locator('main h1:has-text("Ubicaciones")')).toBeVisible();
     });
 
-    test('should navigate to Productos (CatÃ¡logo)', async ({ page }) => {
+    test('should navigate to Productos (Catálogo)', async ({ page }) => {
       await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
@@ -217,7 +217,7 @@ test.describe('Navigation', () => {
       await page.goto('/settings');
       await page.waitForLoadState('networkidle');
 
-      await expect(page.locator('main h1:has-text("ConfiguraciÃ³n")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Configuración")')).toBeVisible();
     });
 
     test('should navigate directly to /catalog/locations', async ({ page }) => {
@@ -277,7 +277,7 @@ test.describe('Navigation', () => {
       await page.goto('/');
       await page.waitForLoadState('networkidle');
 
-      // Dashboard page has no sidebar â€” verify we're on dashboard via welcome text
+      // Dashboard page has no sidebar - verify we're on dashboard via welcome text
       await expect(page.locator('text=Bienvenido')).toBeVisible();
     });
   });
@@ -315,7 +315,7 @@ test.describe('Navigation', () => {
       await page.waitForLoadState('networkidle');
 
       // Click logout button
-      await page.click('aside button:has-text("Cerrar SesiÃ³n")');
+      await page.click('aside button:has-text("Cerrar Sesión")');
 
       // Should redirect to login
       await page.waitForURL('/login');
@@ -326,7 +326,7 @@ test.describe('Navigation', () => {
       await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      await page.click('aside button:has-text("Cerrar SesiÃ³n")');
+      await page.click('aside button:has-text("Cerrar Sesión")');
       await page.waitForURL('/login');
 
       // Try to access protected route
@@ -341,7 +341,7 @@ test.describe('Navigation', () => {
       await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      await page.click('aside button:has-text("Cerrar SesiÃ³n")');
+      await page.click('aside button:has-text("Cerrar Sesión")');
       await page.waitForURL('/login');
       await page.waitForLoadState('networkidle');
 

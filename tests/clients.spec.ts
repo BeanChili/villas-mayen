@@ -60,7 +60,7 @@ test.describe('Clients', () => {
       await expect(dialog.locator('text=Teléfono')).toBeVisible();
       await expect(dialog.locator('text=Email')).toBeVisible();
       await expect(dialog.locator('text=Dirección')).toBeVisible();
-      await expect(dialog.locator('text=RFC')).toBeVisible();
+      await expect(dialog.locator('text=NIT')).toBeVisible();
       await expect(dialog.locator('text=Observaciones')).toBeVisible();
     });
 
@@ -330,15 +330,17 @@ test.describe('Clients', () => {
 
     test('should update client type', async ({ page }) => {
       // Create client as Particular
+      const typeName = generateRandomName('Tipo');
       await page.locator('button:has-text("Nuevo Cliente")').click();
       await page.waitForTimeout(500);
       const dialog = page.locator('[role="dialog"]');
-      await dialog.locator('input').first().fill(generateRandomName('Tipo'));
+      await dialog.locator('input').first().fill(typeName);
       await dialog.locator('button[type="submit"]').click();
       await page.waitForTimeout(1000);
-      
-      // Edit and change type
-      await page.locator('[data-testid="edit-client-btn"]').first().click();
+
+      // Edit the created row (la primera fila puede ser de otro test corriendo en paralelo)
+      const clientRow = page.locator(`tr:has-text("${typeName}")`);
+      await clientRow.locator('[data-testid="edit-client-btn"]').click();
       await page.waitForTimeout(500);
       
       const editDialog = page.locator('[role="dialog"]');

@@ -61,17 +61,17 @@ test.describe('Quotes', () => {
 test.describe('Calendar', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto('/reservations');
+    await page.goto('/calendar');
     await page.waitForLoadState('networkidle');
   });
 
   test('should load calendar page', async ({ page }) => {
-    await expect(page.locator('main h1:has-text("Reservaciones")')).toBeVisible();
+    await expect(page.locator('main h1:has-text("Calendario de Eventos")')).toBeVisible();
   });
 
   test('should have view switcher buttons', async ({ page }) => {
-    await expect(page.locator('button:has-text("Mes")')).toBeVisible();
-    await expect(page.locator('button:has-text("Semana")')).toBeVisible();
+    await expect(page.locator('button:has-text("2 Semanas")')).toBeVisible();
+    await expect(page.locator('button:has-text("Semana")').last()).toBeVisible();
     await expect(page.locator('button:has-text("Día")')).toBeVisible();
   });
 });
