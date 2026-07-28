@@ -175,11 +175,13 @@ export const generateRandomPhone = (): string => {
 
 // Test users
 export const testUsers = {
-  admin: { username: 'admin', password: 'admin123', role: 'ADMIN' },
+  admin: { username: 'admin', password: 'admin123', role: 'SUPERADMIN' },
   recepcionista: { username: 'recepcionista', password: 'recepcionista123', role: 'RECEPCIONISTA' },
   finanzas: { username: 'finanzas', password: 'finanzas123', role: 'FINANZAS' },
   almacen: { username: 'almacen', password: 'almacen123', role: 'ALMACEN' },
   visual: { username: 'visual', password: 'visual123', role: 'VISUAL' },
+  benjamin: { username: 'benjamin', password: 'benjamin123', role: 'CONTADOR' },
+  eric: { username: 'eric', password: 'eric123', role: 'FINANZAS_RESTRINGIDO' },
 };
 
 // Timeout helpers
