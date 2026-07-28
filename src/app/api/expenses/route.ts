@@ -11,11 +11,16 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category")
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
+    const quoteId = searchParams.get("quoteId")
 
     const where: any = {}
 
     if (category) {
       where.category = category
+    }
+
+    if (quoteId) {
+      where.quoteId = quoteId
     }
 
     if (startDate && endDate) {

@@ -1,10 +1,21 @@
 import { test, expect, loginAsAdmin, selectClientFromDropdown } from "./helpers";
 import { generateRandomName, getFutureDate } from "./helpers";
+import type { Page } from "@playwright/test";
 
 /**
  * QUOTES TESTS - Quote (Cotización) CRUD and lifecycle management
  * Tests creation, spaces, products, status transitions, and auto-expiration
  */
+
+// Enviar/Reenviar abren el dialogo "Registrar Envío"; confirmarlo sin mail
+// solo marca la cotizacion como enviada
+const confirmarRegistroEnvio = async (page: Page) => {
+  const sendDialog = page.locator('[role="dialog"]').filter({ hasText: 'Registrar Envío' });
+  await expect(sendDialog).toBeVisible({ timeout: 5000 });
+  await sendDialog.locator('button:has-text("Registrar envío")').click();
+  await expect(sendDialog).toBeHidden({ timeout: 10000 });
+  await page.waitForTimeout(300);
+};
 test.describe('Quotes', () => {
 
   test.beforeEach(async ({ page }) => {
@@ -189,7 +200,7 @@ test.describe('Quotes', () => {
       await expect(borradorRow).toBeVisible({ timeout: 5000 });
       const sendButton = borradorRow.locator('button[title="Enviar"]').first();
       await sendButton.click();
-      await page.waitForTimeout(500);
+      await confirmarRegistroEnvio(page);
 
       // Verify status changed to ENVIADA
       await expect(page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first()).toBeVisible({ timeout: 10000 });
@@ -237,7 +248,7 @@ test.describe('Quotes', () => {
       const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
       const sendButton = borradorRow.locator('button[title="Enviar"]').first();
       await sendButton.click();
-      await page.waitForTimeout(500);
+      await confirmarRegistroEnvio(page);
 
       // Confirm the quote
       const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first();
@@ -300,7 +311,7 @@ test.describe('Quotes', () => {
       // Send the quote
       const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
       await borradorRow.locator('button[title="Enviar"]').first().click();
-      await page.waitForTimeout(500);
+      await confirmarRegistroEnvio(page);
 
       // Get quote ID from the ENVIADA row
       const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first();
@@ -334,7 +345,7 @@ test.describe('Quotes', () => {
       // Re-send (NO_CONFIRMADA → ENVIADA)
       const reSendButton = noConfRow.locator('button[title="Reenviar"]').first();
       await reSendButton.click();
-      await page.waitForTimeout(500);
+      await confirmarRegistroEnvio(page);
 
       await expect(page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first()).toBeVisible({ timeout: 10000 });
       console.log('✓ Quote re-sent: NO_CONFIRMADA → ENVIADA');
@@ -380,7 +391,7 @@ test.describe('Quotes', () => {
       // Send
       const borradorRow = page.locator('tbody tr').filter({ hasText: 'Borrador' }).first();
       await borradorRow.locator('button[title="Enviar"]').first().click();
-      await page.waitForTimeout(500);
+      await confirmarRegistroEnvio(page);
 
       // Confirm
       const enviadaRow = page.locator('tbody tr').filter({ hasText: 'Enviada a Cliente' }).first();

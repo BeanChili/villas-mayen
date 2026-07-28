@@ -6,6 +6,30 @@ import { formatQuoteCode } from "@/lib/utils"
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+
+    // Listado minimo para selects (ej: ligar un gasto a su evento): sin
+    // montos ni detalle, accesible tambien para quien solo ve gastos
+    if (searchParams.get("minimal") === "1") {
+      const guard = await requireAnyPermission([
+        ["quotes", "view"], ["expenses", "view"], ["calendar", "view"], ["events", "view"],
+      ])
+      if (!guard.ok) return guard.error
+
+      const minimal = await prisma.quote.findMany({
+        where: { status: { notIn: ["CANCELADO"] } },
+        select: {
+          id: true,
+          code: true,
+          eventTitle: true,
+          eventDate: true,
+          client: { select: { name: true } },
+        },
+        orderBy: { eventDate: "desc" },
+      })
+      return NextResponse.json({ success: true, data: minimal })
+    }
+
     const guard = await requireAnyPermission([["quotes", "view"], ["calendar", "view"], ["dashboard", "view"], ["screen", "view"], ["events", "view"], ["closings", "view"], ["reports_cobranza", "view"]])
     if (!guard.ok) return guard.error
 

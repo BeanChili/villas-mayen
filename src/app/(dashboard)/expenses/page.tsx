@@ -13,6 +13,14 @@ import { Plus, Search, Wallet, Loader2, Edit, Trash2, TrendingUp, TrendingDown }
 import { usePermissions } from "@/components/permissions-provider"
 import { RequireModule } from "@/components/require-module"
 
+interface QuoteOption {
+  id: string
+  code: string
+  eventTitle: string | null
+  eventDate: string
+  client: { name: string }
+}
+
 interface Expense {
   id: string
   date: string
@@ -20,6 +28,23 @@ interface Expense {
   description: string
   amount: number
   receiptPhoto?: string
+  quoteId: string | null
+  quote?: {
+    code: string
+    eventTitle: string | null
+    client: { name: string }
+  } | null
+}
+
+function formatQuoteDate(dateStr: string) {
+  const d = new Date(dateStr)
+  const day = String(d.getDate()).padStart(2, "0")
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  return `${day}/${month}/${d.getFullYear()}`
+}
+
+function quoteOptionLabel(quote: QuoteOption) {
+  return `${quote.code} - ${quote.eventTitle || quote.client.name} (${formatQuoteDate(quote.eventDate)})`
 }
 
 export default function ExpensesPage() {
@@ -33,9 +58,11 @@ export default function ExpensesPage() {
 function ExpensesPageContent() {
   const { can } = usePermissions()
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [quotes, setQuotes] = useState<QuoteOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [quoteFilter, setQuoteFilter] = useState<string>("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -46,11 +73,23 @@ function ExpensesPageContent() {
     description: "",
     amount: 0,
     receiptPhoto: "",
+    quoteId: "none",
   })
 
   useEffect(() => {
     fetchExpenses()
+    fetchQuotes()
   }, [])
+
+  async function fetchQuotes() {
+    try {
+      const response = await fetch("/api/quotes?minimal=1")
+      const data = await response.json()
+      setQuotes(Array.isArray(data?.data) ? data.data : [])
+    } catch (error) {
+      console.error("Error fetching quotes:", error)
+    }
+  }
 
   async function fetchExpenses() {
     try {
@@ -74,7 +113,10 @@ function ExpensesPageContent() {
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          quoteId: formData.quoteId === "none" ? null : formData.quoteId,
+        }),
       })
       
       if (response.ok) {
@@ -98,6 +140,7 @@ function ExpensesPageContent() {
       description: expense.description,
       amount: expense.amount,
       receiptPhoto: expense.receiptPhoto || "",
+      quoteId: expense.quoteId || "none",
     })
     setIsEditing(true)
     setIsDialogOpen(true)
@@ -121,6 +164,7 @@ function ExpensesPageContent() {
       description: "",
       amount: 0,
       receiptPhoto: "",
+      quoteId: "none",
     })
     setSelectedExpense(null)
     setIsEditing(false)
@@ -129,7 +173,8 @@ function ExpensesPageContent() {
   const filteredExpenses = expenses.filter(expense => {
     const matchesSearch = expense.description.toLowerCase().includes(search.toLowerCase())
     const matchesCategory = categoryFilter === "all" || expense.category === categoryFilter
-    return matchesSearch && matchesCategory
+    const matchesQuote = quoteFilter === "all" || expense.quoteId === quoteFilter
+    return matchesSearch && matchesCategory && matchesQuote
   })
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
@@ -182,6 +227,17 @@ function ExpensesPageContent() {
             <SelectItem value="all">Todas las categorías</SelectItem>
             {Object.entries(expenseCategoryLabels).map(([key, label]) => (
               <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={quoteFilter} onValueChange={setQuoteFilter}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Evento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los eventos</SelectItem>
+            {quotes.map((quote) => (
+              <SelectItem key={quote.id} value={quote.id}>{quoteOptionLabel(quote)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -255,6 +311,7 @@ function ExpensesPageContent() {
                     <th className="text-left p-3 font-medium">Fecha</th>
                     <th className="text-left p-3 font-medium">Categoría</th>
                     <th className="text-left p-3 font-medium">Descripción</th>
+                    <th className="text-left p-3 font-medium">Evento</th>
                     <th className="text-right p-3 font-medium">Monto</th>
                     <th className="text-left p-3 font-medium">Acciones</th>
                   </tr>
@@ -267,6 +324,11 @@ function ExpensesPageContent() {
                         <span className="text-sm">{expenseCategoryLabels[expense.category as keyof typeof expenseCategoryLabels] || expense.category}</span>
                       </td>
                       <td className="p-3">{expense.description}</td>
+                      <td className="p-3">
+                        <span className="text-sm">
+                          {expense.quote ? `${expense.quote.code} - ${expense.quote.eventTitle || expense.quote.client.name}` : "-"}
+                        </span>
+                      </td>
                       <td className="p-3 text-right font-medium">{formatCurrency(expense.amount)}</td>
                       <td className="p-3">
                         <div className="flex gap-2">
@@ -337,6 +399,24 @@ function ExpensesPageContent() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Evento (opcional)</Label>
+              <Select
+                value={formData.quoteId}
+                onValueChange={(value) => setFormData({ ...formData, quoteId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin evento</SelectItem>
+                  {quotes.map((quote) => (
+                    <SelectItem key={quote.id} value={quote.id}>{quoteOptionLabel(quote)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

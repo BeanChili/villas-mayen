@@ -115,4 +115,41 @@ describe("api/expenses", () => {
     expect(body.data).toHaveLength(1)
     expect(body.data[0].category).toBe("SUELDOS")
   })
+
+  it("GET filtra por evento (quoteId) e incluye los datos del evento", async () => {
+    const cliente = await createTestClient()
+    const evento = await createTestQuote(cliente.id)
+    const otro = await createTestQuote(cliente.id)
+    await prisma.expense.createMany({
+      data: [
+        { date: new Date(), category: "DECORACION", description: "Flores", amount: 100, quoteId: evento.id },
+        { date: new Date(), category: "DECORACION", description: "Globos", amount: 50, quoteId: otro.id },
+        { date: new Date(), category: "SERVICIOS", description: "Luz", amount: 1 },
+      ],
+    })
+    await mockSession("FINANZAS")
+
+    const res = await GET(getRequest(`/api/expenses?quoteId=${evento.id}`))
+    const body = await res.json()
+    expect(body.data).toHaveLength(1)
+    expect(body.data[0].description).toBe("Flores")
+    expect(body.data[0].quote.client.name).toBe(cliente.name)
+  })
+
+  it("el listado minimal de quotes es accesible para quien solo ve gastos", async () => {
+    const cliente = await createTestClient()
+    await createTestQuote(cliente.id)
+    // FINANZAS_RESTRINGIDO no existe en la base de test (viene del seed);
+    // FINANZAS cumple el mismo caso: tiene gastos pero el minimal no expone montos
+    await mockSession("FINANZAS")
+
+    const { GET: getQuotes } = await import("@/app/api/quotes/route")
+    const res = await getQuotes(getRequest("/api/quotes?minimal=1"))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data).toHaveLength(1)
+    expect(body.data[0].client.name).toBe(cliente.name)
+    expect(body.data[0].totalAmount).toBeUndefined()
+    expect(body.data[0].paidAmount).toBeUndefined()
+  })
 })

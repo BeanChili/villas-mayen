@@ -12,8 +12,8 @@ test.describe('Navigation', () => {
 
   test.describe('Sidebar Navigation', () => {
     test('should display sidebar with all menu items', async ({ page }) => {
-      // Dashboard has no sidebar — navigate to internal page first
-      await page.goto('/reservations');
+      // Dashboard has no sidebar â€” navigate to internal page first
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       // Verify sidebar is visible
@@ -23,13 +23,13 @@ test.describe('Navigation', () => {
       // Verify main navigation items
       const mainNavItems = [
         'Dashboard',
-        'Reservaciones',
+        'Calendario',
         'Clientes',
         'Cotizaciones',
         'Inventario',
         'Gastos',
         'Eventos',
-        'Configuración',
+        'ConfiguraciÃ³n',
       ];
 
       for (const item of mainNavItems) {
@@ -49,7 +49,7 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to Dashboard', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Dashboard")');
@@ -58,18 +58,18 @@ test.describe('Navigation', () => {
       await expect(page.locator('text=Bienvenido')).toBeVisible();
     });
 
-    test('should navigate to Reservaciones', async ({ page }) => {
+    test('should navigate to Calendario', async ({ page }) => {
       await page.goto('/clients');
       await page.waitForLoadState('networkidle');
 
-      await page.click('aside a:has-text("Reservaciones")');
-      await page.waitForURL('/reservations');
+      await page.click('aside a:has-text("Calendario")');
+      await page.waitForURL('/calendar');
 
-      await expect(page.locator('main h1:has-text("Reservaciones")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Calendario")')).toBeVisible();
     });
 
     test('should navigate to Clientes', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Clientes")');
@@ -79,7 +79,7 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to Cotizaciones', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Cotizaciones")');
@@ -89,7 +89,7 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to Inventario', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Inventario")');
@@ -99,7 +99,7 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to Gastos', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Gastos")');
@@ -109,7 +109,7 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to Eventos', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Eventos")');
@@ -118,18 +118,18 @@ test.describe('Navigation', () => {
       await expect(page.locator('main h1:has-text("Eventos")')).toBeVisible();
     });
 
-    test('should navigate to Configuración', async ({ page }) => {
-      await page.goto('/reservations');
+    test('should navigate to ConfiguraciÃ³n', async ({ page }) => {
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      await page.click('aside a:has-text("Configuración")');
+      await page.click('aside a:has-text("ConfiguraciÃ³n")');
       await page.waitForURL('/settings');
 
-      await expect(page.locator('main h1:has-text("Configuración")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("ConfiguraciÃ³n")')).toBeVisible();
     });
 
-    test('should navigate to Ubicaciones (Catálogo)', async ({ page }) => {
-      await page.goto('/reservations');
+    test('should navigate to Ubicaciones (CatÃ¡logo)', async ({ page }) => {
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Ubicaciones")');
@@ -138,8 +138,8 @@ test.describe('Navigation', () => {
       await expect(page.locator('main h1:has-text("Ubicaciones")')).toBeVisible();
     });
 
-    test('should navigate to Productos (Catálogo)', async ({ page }) => {
-      await page.goto('/reservations');
+    test('should navigate to Productos (CatÃ¡logo)', async ({ page }) => {
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Productos")');
@@ -149,7 +149,7 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to Habitaciones', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.click('aside a:has-text("Habitaciones")');
@@ -159,7 +159,7 @@ test.describe('Navigation', () => {
     });
 
     test('should navigate to Cierres', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.goto('/reports/closings');
@@ -171,11 +171,11 @@ test.describe('Navigation', () => {
   });
 
   test.describe('URL Routing', () => {
-    test('should navigate directly to /reservations', async ({ page }) => {
-      await page.goto('/reservations');
+    test('should navigate directly to /calendar', async ({ page }) => {
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      await expect(page.locator('main h1:has-text("Reservaciones")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Calendario")')).toBeVisible();
     });
 
     test('should navigate directly to /clients', async ({ page }) => {
@@ -217,7 +217,7 @@ test.describe('Navigation', () => {
       await page.goto('/settings');
       await page.waitForLoadState('networkidle');
 
-      await expect(page.locator('main h1:has-text("Configuración")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("ConfiguraciÃ³n")')).toBeVisible();
     });
 
     test('should navigate directly to /catalog/locations', async ({ page }) => {
@@ -250,12 +250,12 @@ test.describe('Navigation', () => {
   });
 
   test.describe('Active Navigation State', () => {
-    test('should highlight Reservaciones when on reservations page', async ({ page }) => {
-      await page.goto('/reservations');
+    test('should highlight Calendario when on calendar page', async ({ page }) => {
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       // Check that the nav item has active styling (bg-primary)
-      const activeItem = page.locator('aside a:has-text("Reservaciones")');
+      const activeItem = page.locator('aside a:has-text("Calendario")');
       await expect(activeItem).toBeVisible();
     });
 
@@ -277,18 +277,18 @@ test.describe('Navigation', () => {
       await page.goto('/');
       await page.waitForLoadState('networkidle');
 
-      // Dashboard page has no sidebar — verify we're on dashboard via welcome text
+      // Dashboard page has no sidebar â€” verify we're on dashboard via welcome text
       await expect(page.locator('text=Bienvenido')).toBeVisible();
     });
   });
 
   test.describe('Breadcrumb/Header', () => {
     test('should show correct page title in header', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       // Page heading is in main, not header
-      await expect(page.locator('main h1:has-text("Reservaciones")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Calendario")')).toBeVisible();
     });
 
     test('should update header when navigating', async ({ page }) => {
@@ -311,11 +311,11 @@ test.describe('Navigation', () => {
   test.describe('Logout Flow', () => {
     test('should logout and redirect to login', async ({ page }) => {
       // Navigate to internal page first (dashboard has no sidebar)
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       // Click logout button
-      await page.click('aside button:has-text("Cerrar Sesión")');
+      await page.click('aside button:has-text("Cerrar SesiÃ³n")');
 
       // Should redirect to login
       await page.waitForURL('/login');
@@ -323,10 +323,10 @@ test.describe('Navigation', () => {
     });
 
     test('should clear session after logout', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      await page.click('aside button:has-text("Cerrar Sesión")');
+      await page.click('aside button:has-text("Cerrar SesiÃ³n")');
       await page.waitForURL('/login');
 
       // Try to access protected route
@@ -338,10 +338,10 @@ test.describe('Navigation', () => {
     });
 
     test('should not allow access after logout', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      await page.click('aside button:has-text("Cerrar Sesión")');
+      await page.click('aside button:has-text("Cerrar SesiÃ³n")');
       await page.waitForURL('/login');
       await page.waitForLoadState('networkidle');
 
@@ -349,7 +349,7 @@ test.describe('Navigation', () => {
       await page.context().clearCookies();
 
       // Try direct access to various routes
-      const routes = ['/reservations', '/clients', '/quotes', '/inventory', '/catalog/locations', '/rooms'];
+      const routes = ['/calendar', '/clients', '/quotes', '/inventory', '/catalog/locations', '/rooms'];
 
       for (const route of routes) {
         await page.goto(route);
@@ -365,7 +365,7 @@ test.describe('Navigation', () => {
   test.describe('Mobile Navigation', () => {
     test('should show hamburger menu on small screens', async ({ page }) => {
       // Navigate to internal page first (dashboard has no sidebar/header)
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       // Set mobile viewport
@@ -377,7 +377,7 @@ test.describe('Navigation', () => {
     });
 
     test('should toggle sidebar on mobile', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       await page.setViewportSize({ width: 375, height: 667 });
@@ -397,7 +397,7 @@ test.describe('Navigation', () => {
     test('should load page within reasonable time', async ({ page }) => {
       const startTime = Date.now();
 
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       const loadTime = Date.now() - startTime;
@@ -408,7 +408,7 @@ test.describe('Navigation', () => {
 
     test('should show loading indicator during navigation', async ({ page }) => {
       // Navigate to internal page first (dashboard has no sidebar)
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
       // Click and immediately check
@@ -422,17 +422,17 @@ test.describe('Navigation', () => {
 
   test.describe('Nested Navigation', () => {
     test('should handle navigation to same section', async ({ page }) => {
-      await page.goto('/reservations');
+      await page.goto('/calendar');
       await page.waitForLoadState('networkidle');
 
-      // Click on Dashboard then back to reservations
+      // Click on Dashboard then back to calendar
       await page.click('aside a:has-text("Dashboard")');
       await page.waitForURL('/');
 
-      await page.click('aside a:has-text("Reservaciones")');
-      await page.waitForURL('/reservations');
+      await page.click('aside a:has-text("Calendario")');
+      await page.waitForURL('/calendar');
 
-      await expect(page.locator('main h1:has-text("Reservaciones")')).toBeVisible();
+      await expect(page.locator('main h1:has-text("Calendario")')).toBeVisible();
     });
 
     test('should maintain state when navigating between pages', async ({ page }) => {

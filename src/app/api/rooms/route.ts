@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/db"
 import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
+import { sweepRoomMaintenance } from "@/lib/rooms"
 
 export async function GET(request: NextRequest) {
   try {
     const guard = await requireAnyPermission([["rooms", "view"], ["quotes", "view"], ["reports_ocupacion", "view"], ["calendar", "view"]])
     if (!guard.ok) return guard.error
+
+    // Barrido perezoso: mantenimientos vencidos vuelven a DISPONIBLE
+    await sweepRoomMaintenance()
 
     const { searchParams } = new URL(request.url)
     const buildingId = searchParams.get("buildingId")
@@ -50,10 +54,26 @@ export async function POST(request: NextRequest) {
       pricePerPerson,
       status,
       active,
+      description,
+      maintenanceWork,
+      maintenanceEndDate,
     } = body
 
     if (!floorId || !number) {
       return NextResponse.json({ success: false, error: "Piso y número son requeridos" }, { status: 400 })
+    }
+
+    const estado = status || "DISPONIBLE"
+    const enMantenimiento = estado === "MANTENIMIENTO"
+    if (enMantenimiento && (!maintenanceWork?.trim() || !maintenanceEndDate)) {
+      return NextResponse.json(
+        { success: false, error: "En mantenimiento hay que indicar el trabajo y la fecha de fin" },
+        { status: 400 }
+      )
+    }
+    const fechaFin = enMantenimiento ? new Date(maintenanceEndDate + "T12:00:00") : null
+    if (enMantenimiento && isNaN(fechaFin!.getTime())) {
+      return NextResponse.json({ success: false, error: "Fecha de fin inválida" }, { status: 400 })
     }
 
     const room = await prisma.room.create({
@@ -64,8 +84,11 @@ export async function POST(request: NextRequest) {
         bedType: bedType || null,
         pricePerNight: pricePerNight ? parseFloat(pricePerNight) : null,
         pricePerPerson: pricePerPerson ? parseFloat(pricePerPerson) : null,
-        status: status || "DISPONIBLE",
+        status: estado,
         active: active !== undefined ? active : true,
+        description: description?.trim() || null,
+        maintenanceWork: enMantenimiento ? maintenanceWork.trim() : null,
+        maintenanceEndDate: fechaFin,
       },
     })
 

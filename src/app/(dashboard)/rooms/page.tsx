@@ -25,6 +25,9 @@ interface Room {
   status: string
   photo: string | null
   active: boolean
+  description: string | null
+  maintenanceWork: string | null
+  maintenanceEndDate: string | null
   floor: {
     id: string
     level: number
@@ -47,6 +50,11 @@ interface Floor {
   level: number
   buildingId: string
   building: { id: string; name: string }
+}
+
+function formatMaintenanceDate(isoDate: string) {
+  const [year, month, day] = isoDate.split("T")[0].split("-")
+  return `${day}/${month}/${year}`
 }
 
 const statusColorMap: Record<string, string> = {
@@ -90,6 +98,9 @@ function RoomsPageContent() {
     pricePerPerson: "",
     status: "DISPONIBLE" as RoomStatus,
     active: true,
+    description: "",
+    maintenanceWork: "",
+    maintenanceEndDate: "",
   })
 
   useEffect(() => {
@@ -149,11 +160,15 @@ function RoomsPageContent() {
       const url = selectedRoom ? `/api/rooms/${selectedRoom.id}` : "/api/rooms"
       const method = selectedRoom ? "PUT" : "POST"
 
+      const isMaintenance = formData.status === "MANTENIMIENTO"
       const payload = {
         ...formData,
         capacity: formData.capacity ? parseInt(formData.capacity, 10) : null,
         pricePerNight: formData.pricePerNight ? parseFloat(formData.pricePerNight) : null,
         pricePerPerson: formData.pricePerPerson ? parseFloat(formData.pricePerPerson) : null,
+        description: formData.description || null,
+        maintenanceWork: isMaintenance ? formData.maintenanceWork : null,
+        maintenanceEndDate: isMaintenance ? formData.maintenanceEndDate : null,
       }
 
       const response = await fetch(url, {
@@ -187,6 +202,9 @@ function RoomsPageContent() {
       pricePerPerson: room.pricePerPerson?.toString() || "",
       status: room.status as RoomStatus,
       active: room.active,
+      description: room.description || "",
+      maintenanceWork: room.maintenanceWork || "",
+      maintenanceEndDate: room.maintenanceEndDate ? room.maintenanceEndDate.split("T")[0] : "",
     })
     setIsEditing(true)
     setIsDialogOpen(true)
@@ -219,6 +237,9 @@ function RoomsPageContent() {
       pricePerPerson: "",
       status: "DISPONIBLE",
       active: true,
+      description: "",
+      maintenanceWork: "",
+      maintenanceEndDate: "",
     })
     setSelectedRoom(null)
     setIsEditing(false)
@@ -384,7 +405,14 @@ function RoomsPageContent() {
                     <tr key={room.id} className="border-b hover:bg-gray-50">
                       <td className="p-3 font-medium">{room.floor.building.name}</td>
                       <td className="p-3 text-gray-600">Piso {room.floor.level}</td>
-                      <td className="p-3 text-gray-600">{room.number}</td>
+                      <td className="p-3 text-gray-600">
+                        <span title={room.description || undefined}>{room.number}</span>
+                        {room.description ? (
+                          <p className="text-xs text-gray-400 max-w-[180px] truncate" title={room.description}>
+                            {room.description}
+                          </p>
+                        ) : null}
+                      </td>
                       <td className="p-3 text-gray-600">{room.capacity ?? "-"}</td>
                       <td className="p-3 text-gray-600">
                         {room.bedType ? bedTypeLabels[room.bedType as keyof typeof bedTypeLabels] || room.bedType : "-"}
@@ -399,6 +427,11 @@ function RoomsPageContent() {
                         <Badge variant="secondary" className={cn(statusColorMap[room.status])}>
                           {roomStatusLabels[room.status as keyof typeof roomStatusLabels] || room.status}
                         </Badge>
+                        {room.status === "MANTENIMIENTO" && room.maintenanceWork && room.maintenanceEndDate ? (
+                          <p className="text-xs text-amber-700 mt-1">
+                            Trabajo: {room.maintenanceWork}, vuelve el {formatMaintenanceDate(room.maintenanceEndDate)}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="p-3">
                         <Badge variant={room.active ? "default" : "secondary"}>
@@ -551,6 +584,39 @@ function RoomsPageContent() {
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Descripción</Label>
+              <textarea
+                id="description"
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            {formData.status === "MANTENIMIENTO" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Trabajo en curso *</Label>
+                  <Input
+                    value={formData.maintenanceWork}
+                    onChange={(e) => setFormData({ ...formData, maintenanceWork: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha de fin *</Label>
+                  <Input
+                    type="date"
+                    value={formData.maintenanceEndDate}
+                    onChange={(e) => setFormData({ ...formData, maintenanceEndDate: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <input

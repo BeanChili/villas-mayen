@@ -44,6 +44,9 @@ export async function PUT(
       pricePerPerson,
       status,
       active,
+      description,
+      maintenanceWork,
+      maintenanceEndDate,
     } = body
 
     const data: any = {}
@@ -55,6 +58,28 @@ export async function PUT(
     if (pricePerPerson !== undefined) data.pricePerPerson = pricePerPerson ? parseFloat(pricePerPerson) : null
     if (status !== undefined) data.status = status
     if (active !== undefined) data.active = active
+    if (description !== undefined) data.description = description?.trim() || null
+
+    // Mantenimiento: al entrar exige trabajo y fecha de fin; al salir se limpian
+    if (status !== undefined) {
+      if (status === "MANTENIMIENTO") {
+        if (!maintenanceWork?.trim() || !maintenanceEndDate) {
+          return NextResponse.json(
+            { success: false, error: "En mantenimiento hay que indicar el trabajo y la fecha de fin" },
+            { status: 400 }
+          )
+        }
+        const fechaFin = new Date(maintenanceEndDate + "T12:00:00")
+        if (isNaN(fechaFin.getTime())) {
+          return NextResponse.json({ success: false, error: "Fecha de fin inválida" }, { status: 400 })
+        }
+        data.maintenanceWork = maintenanceWork.trim()
+        data.maintenanceEndDate = fechaFin
+      } else {
+        data.maintenanceWork = null
+        data.maintenanceEndDate = null
+      }
+    }
 
     const room = await prisma.room.update({
       where: { id: params.id },

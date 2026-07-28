@@ -123,7 +123,7 @@ export const clickSidebar = async (page: Page, item: string) => {
     // Map sidebar items to their routes
     const routes: Record<string, string> = {
       'Dashboard': '/',
-      'Reservaciones': '/reservations',
+      'Calendario': '/calendar',
       'Clientes': '/clients',
       'Cotizaciones': '/quotes',
       'Inventario': '/inventory',

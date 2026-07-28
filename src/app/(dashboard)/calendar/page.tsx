@@ -69,6 +69,10 @@ interface Location {
 
 // ─── constantes de horarios ───────────────────────────────────────────────────
 
+// Altura compartida de las tres vistas del calendario (pedido del cliente:
+// calendario mas grande)
+const CAL_VIEW_HEIGHT = "max(700px, calc(100vh - 200px))"
+
 const SCHEDULE_ORDER = ["MANANA", "TARDE", "NOCHE"] as const
 type Schedule = typeof SCHEDULE_ORDER[number]
 
@@ -1108,7 +1112,7 @@ function ReservationsContent() {
             <div
               key={band.key}
               className={cn("flex items-start gap-1 px-1.5 py-1.5 overflow-hidden flex-1", f > 0 && "border-t border-border/40")}
-              style={{ backgroundColor: band.bg, minHeight: 44 }}
+              style={{ backgroundColor: band.bg, minHeight: 56 }}
             >
               <span className="text-[9px] font-bold text-muted-foreground/60 uppercase w-5 shrink-0 pt-0.5">
                 {SCHEDULE_SHORT[band.key]}
@@ -1160,7 +1164,7 @@ function ReservationsContent() {
     return (
       <div
         className="flex flex-col border border-border rounded-xl overflow-hidden"
-        style={{ height: "max(560px, calc(100vh - 300px))" }}
+        style={{ height: CAL_VIEW_HEIGHT }}
       >
         {/* Encabezados de día */}
         <div className="grid grid-cols-7 shrink-0">
@@ -1193,7 +1197,7 @@ function ReservationsContent() {
             const isT = dayKey === today
             return (
               <div key={`wk-c-${i}`} className={cn("border-t border-border min-h-0", isT && "bg-primary/[0.03]", i > 0 && "border-l border-border")}>
-                {renderGridDayCell(dayKey, 22, "text-xs")}
+                {renderGridDayCell(dayKey, 28, "text-xs")}
               </div>
             )
           })}
@@ -1244,7 +1248,7 @@ function ReservationsContent() {
     return (
       <div
         className="flex flex-col border border-border rounded-xl overflow-hidden"
-        style={{ height: "max(560px, calc(100vh - 300px))" }}
+        style={{ height: CAL_VIEW_HEIGHT }}
       >
         {renderChipWeekSection(allDays.slice(0, 7), "w1", false)}
         {renderChipWeekSection(allDays.slice(7, 14), "w2", true)}
@@ -1259,7 +1263,7 @@ function ReservationsContent() {
     const dayCount = getResForDay(dayKey).length
 
     return (
-      <div className="flex flex-col overflow-hidden" style={{ height: "max(560px, calc(100vh - 300px))" }}>
+      <div className="flex flex-col overflow-hidden" style={{ height: CAL_VIEW_HEIGHT }}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
           <h2 className="text-lg font-semibold text-foreground capitalize">
@@ -1441,7 +1445,7 @@ function ReservationsContent() {
   // ── JSX principal ──────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       {/* Header */}
       <div className="flex items-end justify-between gap-4">
         <div>
