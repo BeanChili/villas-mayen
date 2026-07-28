@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { quoteStatusLabels, quoteStatusColors, productCategoryLabels, locationTypeLabels, itemReturnStatusLabels } from "@/types"
-import { formatCurrency, formatCurrencyByCode, formatParkingSpots, getScheduleFromTime } from "@/lib/utils"
+import { formatCurrency, formatCurrencyByCode, formatParkingSpots, getScheduleFromTime, isValidEmail } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { Plus, Search, Loader2, Eye, Send, Check, X, FileText, Trash2, Clock, MapPin, Wallet, Mail, AlertTriangle, Pencil } from "lucide-react"
 import { usePermissions } from "@/components/permissions-provider"
@@ -56,7 +56,8 @@ interface EventClosing {
   damageCost: number; lossCost: number; items: EventClosingItem[]
 }
 interface Quote {
-  id: string; clientId: string; client: { name: string; address?: string; rfc?: string; email?: string; phone?: string }
+  id: string; code?: string; clientId: string; client: { name: string; address?: string; rfc?: string; email?: string; phone?: string }
+  sellerId?: string; sellerName?: string; clientEmail?: string
   eventDate: string; endDate?: string; currency: string; guestCount?: number
   status: string; totalAmount: number; notes?: string; eventTitle?: string
   parkingSpot?: string; confirmationDate?: string; executionDate?: string; completionDate?: string
@@ -109,6 +110,7 @@ function QuotesContent() {
   const urlNew = searchParams.get("new")
   
   const [quotes, setQuotes] = useState<Quote[]>([])
+  const [sellers, setSellers] = useState<Array<{ id: string; name: string }>>([])
   const [clients, setClients] = useState<Client[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [furniture, setFurniture] = useState<FurnitureItem[]>([])
@@ -143,6 +145,12 @@ function QuotesContent() {
   const [savingLiquidation, setSavingLiquidation] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
 
+  // Modal de registro de envio al cliente
+  const [sendDialogOpen, setSendDialogOpen] = useState(false)
+  const [sendQuoteId, setSendQuoteId] = useState("")
+  const [sendEmail, setSendEmail] = useState("")
+  const [sendingQuote, setSendingQuote] = useState(false)
+
   // Modal de anticipo
   const [advancePaymentOpen, setAdvancePaymentOpen] = useState(false)
   const [advancePaymentAmount, setAdvancePaymentAmount] = useState("")
@@ -174,6 +182,7 @@ function QuotesContent() {
 
   const [formData, setFormData] = useState({
     clientId: "",
+    sellerId: "",
     eventTitle: "",
     eventDate: "",
     endDate: "",
@@ -218,23 +227,26 @@ function QuotesContent() {
 
   async function fetchData() {
     try {
-      const [quotesRes, clientsRes, productsRes, furnitureRes, locationsRes] = await Promise.all([
+      const [quotesRes, clientsRes, productsRes, furnitureRes, locationsRes, sellersRes] = await Promise.all([
         fetch("/api/quotes"),
         fetch("/api/clients"),
         fetch("/api/products"),
         fetch("/api/furniture"),
         fetch("/api/locations"),
+        fetch("/api/sellers?active=1"),
       ])
       const q = await quotesRes.json()
       const c = await clientsRes.json()
       const p = await productsRes.json()
       const f = await furnitureRes.json()
       const l = await locationsRes.json()
+      const v = await sellersRes.json()
       setQuotes(Array.isArray(q?.data) ? q.data : Array.isArray(q) ? q : [])
       setClients(Array.isArray(c) ? c : c.data || [])
       setProducts(Array.isArray(p) ? p : p.data || [])
       setFurniture(Array.isArray(f) ? f : f.data || [])
       setLocations(Array.isArray(l) ? l : l.data || [])
+      setSellers(Array.isArray(v?.data) ? v.data : [])
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally { setLoading(false) }
@@ -243,7 +255,7 @@ function QuotesContent() {
   // ── form logic ──────────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setFormData({ clientId: "", eventTitle: "", eventDate: "", endDate: "", currency: "GTQ", exchangeRate: exchangeRate || 7.85, guestCount: 0, spaces: [], notes: "", items: [], menuNumber: 1, guestType: "ADULTO", parkingSpot: "" })
+    setFormData({ clientId: "", sellerId: "", eventTitle: "", eventDate: "", endDate: "", currency: "GTQ", exchangeRate: exchangeRate || 7.85, guestCount: 0, spaces: [], notes: "", items: [], menuNumber: 1, guestType: "ADULTO", parkingSpot: "" })
     setClientSearch("")
     setClientDropdownOpen(false)
     setEditingQuoteId(null)
@@ -256,6 +268,7 @@ function QuotesContent() {
       const detail = data.data || data
       setFormData({
         clientId: quote.clientId,
+        sellerId: detail.sellerId || "",
         eventTitle: quote.eventTitle || "",
         eventDate: quote.eventDate.split("T")[0],
         endDate: (quote.endDate || quote.eventDate).split("T")[0],
@@ -626,6 +639,15 @@ function QuotesContent() {
   const handleStatusChange = async (quoteId: string, status: string) => {
     let body: any = { status }
 
+    if (status === "ENVIADA") {
+      // Registrar ahora, enviar despues: se captura el mail del cliente
+      const quote = quotes.find(q => q.id === quoteId) || selectedQuote
+      setSendQuoteId(quoteId)
+      setSendEmail(quote?.clientEmail || quote?.client?.email || "")
+      setSendDialogOpen(true)
+      return
+    }
+
     if (status === "CONFIRMADA") {
       const quote = quotes.find(q => q.id === quoteId) || selectedQuote
       const total = quote?.totalAmount || 0
@@ -651,6 +673,29 @@ function QuotesContent() {
     } catch (error) {
       console.error("Error updating status:", error)
     }
+  }
+
+  const confirmSendQuote = async () => {
+    const email = sendEmail.trim()
+    if (email && !isValidEmail(email)) return
+    setSendingQuote(true)
+    try {
+      const res = await fetch(`/api/quotes/${sendQuoteId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ENVIADA", clientEmail: email || undefined }),
+      })
+      if (res.ok) {
+        setSendDialogOpen(false)
+        fetchData()
+        if (selectedQuote?.id === sendQuoteId) setSelectedQuote(null)
+      } else {
+        const err = await res.json()
+        alert(err.error || "Error al registrar el envío")
+      }
+    } catch (error) {
+      console.error("Error sending quote:", error)
+    } finally { setSendingQuote(false) }
   }
 
   const confirmAdvancePayment = async () => {
@@ -842,7 +887,7 @@ function QuotesContent() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = `Cotizacion-${quote.client.name}-${new Date().toISOString().split("T")[0]}.pdf`
+      link.download = `Cotizacion-${quote.code || quote.client.name}-${new Date().toISOString().split("T")[0]}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -858,7 +903,8 @@ function QuotesContent() {
   const filteredQuotes = quotes.filter(q => {
     const matchesId = !urlId || q.id === urlId
     const matchesClient = clientFilter === "all" || q.clientId === clientFilter
-    const matchesSearch = q.client.name.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = q.client.name.toLowerCase().includes(search.toLowerCase()) ||
+      (q.code || "").toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === "all" || q.status === statusFilter
     return matchesId && matchesClient && matchesSearch && matchesStatus
   })
@@ -901,7 +947,7 @@ function QuotesContent() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar por cliente..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Buscar por cliente o código..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
           <select
             className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground sm:min-w-[200px] focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -948,6 +994,7 @@ function QuotesContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
+                  <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Código</th>
                   <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cliente</th>
                   <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Evento</th>
                   <th className="text-left p-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Espacios</th>
@@ -958,10 +1005,11 @@ function QuotesContent() {
               </thead>
               <tbody>
                 {filteredQuotes.length === 0 ? (
-                  <tr><td colSpan={6} className="py-20 text-center"><FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">No hay cotizaciones</p></td></tr>
+                  <tr><td colSpan={7} className="py-20 text-center"><FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">No hay cotizaciones</p></td></tr>
                 ) : (
                   filteredQuotes.map(quote => (
                     <tr key={quote.id} className="vm-table-row cursor-pointer" onClick={() => viewQuoteDetails(quote)}>
+                      <td className="p-3 font-mono text-xs text-muted-foreground">{quote.code || "-"}</td>
                       <td className="p-3 font-medium text-foreground max-w-[160px] truncate" title={quote.client.name}>{quote.client.name}</td>
                       <td className="p-3 text-muted-foreground text-xs">
                         {new Date(quote.eventDate).toLocaleDateString("es-GT", { day: "numeric", month: "short", year: "numeric" })}
@@ -1092,6 +1140,18 @@ function QuotesContent() {
               <div className="space-y-2">
                 <Label>No. de Personas</Label>
                 <Input type="number" min="0" value={formData.guestCount || ""} onChange={e => setFormData({ ...formData, guestCount: parseInt(e.target.value) || 0 })} placeholder="Cantidad de asistentes" />
+              </div>
+              <div className="space-y-2">
+                <Label>Vendedor</Label>
+                <Select value={formData.sellerId || "none"} onValueChange={v => setFormData({ ...formData, sellerId: v === "none" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Sin vendedor" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin vendedor</SelectItem>
+                    {sellers.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -1937,6 +1997,43 @@ function QuotesContent() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Registrar envio al cliente ────────────────────────────────── */}
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">Registrar Envío</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Correo del cliente</Label>
+              <Input
+                type="email"
+                value={sendEmail}
+                onChange={e => setSendEmail(e.target.value)}
+                placeholder="cliente@correo.com"
+              />
+              {sendEmail.trim() && !isValidEmail(sendEmail) && (
+                <p className="text-xs text-destructive">El formato del correo no es válido</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Queda registrado a qué correo se envió la cotización. Si lo dejás vacío,
+                solo se marca como enviada.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={confirmSendQuote}
+              disabled={sendingQuote || (!!sendEmail.trim() && !isValidEmail(sendEmail))}
+            >
+              {sendingQuote && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Registrar envío
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

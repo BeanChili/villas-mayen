@@ -43,6 +43,7 @@ const mainNavigation = [
 const catalogNavigation = [
   { name: "Ubicaciones", href: "/catalog/locations", icon: MapPin, module: "locations" },
   { name: "Productos", href: "/catalog/products", icon: ShoppingBag, module: "products" },
+  { name: "Vendedores", href: "/catalog/sellers", icon: Users, module: "sellers" },
   { name: "Habitaciones", href: "/rooms", icon: Home, module: "rooms" },
 ]
 

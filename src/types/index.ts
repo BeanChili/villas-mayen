@@ -243,7 +243,7 @@ export const quoteStatusLabels: Record<string, string> = {
 }
 
 export const quoteStatusColors: Record<string, string> = {
-  BORRADOR: '#9ca3af',        // gray
+  BORRADOR: '#ca8a04',        // amarillo oscuro (contraste con texto blanco)
   ENVIADA: '#6b7280',         // gris oscuro
   NO_CONFIRMADA: '#ef4444',   // red
   CONFIRMADA: '#22c55e',      // verde

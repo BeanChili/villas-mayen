@@ -173,6 +173,19 @@ async function main() {
   }
   console.log(`Created ${locations.length} locations`)
 
+  // ==================== VENDEDORES ====================
+  // Catalogo propio (no son usuarios del sistema); update vacio para no
+  // pisar cambios del cliente en cada deploy
+  const sellers = ['Vendedor Casa', 'María López', 'Carlos Pérez']
+  for (const name of sellers) {
+    await prisma.seller.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    })
+  }
+  console.log(`Created ${sellers.length} sellers`)
+
   // ==================== HABITACIONES ====================
   const buildings = [{ name: 'Belén' }, { name: 'Bethel' }]
   for (const building of buildings) {

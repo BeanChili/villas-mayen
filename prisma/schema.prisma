@@ -135,8 +135,20 @@ model Room {
 
 model Quote {
   id            String    @id @default(cuid())
+  // Codigo correlativo visible (VM-01, VM-02, ...) generado con la
+  // secuencia quote_code_seq
+  code          String?   @unique
   clientId      String
   client        Client    @relation(fields: [clientId], references: [id])
+
+  // Vendedor del catalogo; el nombre queda denormalizado para que el PDF
+  // lo conserve aunque el vendedor se edite o borre
+  sellerId      String?
+  seller        Seller?   @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  sellerName    String?
+
+  // Mail al que se registro el envio de la cotizacion
+  clientEmail   String?
 
   // Datos del evento
   eventTitle    String?   // "Boda Claudia"
@@ -420,6 +432,16 @@ model DailyClosing {
 }
 
 // ==================== EMAIL LOG ====================
+
+model Seller {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  phone     String?
+  active    Boolean  @default(true)
+  quotes    Quote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
 model EmailLog {
   id       String   @id @default(cuid())

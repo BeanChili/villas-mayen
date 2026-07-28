@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/db"
 import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
-import { isValidTransition } from "@/lib/utils"
+import { isValidTransition, isValidEmail } from "@/lib/utils"
+import { sendQuoteEmail } from "@/lib/email"
 
 export async function PATCH(
   request: NextRequest,
@@ -12,7 +13,7 @@ export async function PATCH(
     if (!guard.ok) return guard.error
 
     const body = await request.json()
-    const { status, advancePayment } = body
+    const { status, advancePayment, clientEmail } = body
 
     if (!status) {
       return NextResponse.json({ success: false, error: "Status requerido" }, { status: 400 })
@@ -68,7 +69,7 @@ export async function PATCH(
               currency: current!.currency,
               exchangeRate: current!.exchangeRate,
               amountGTQ: current!.currency === "USD" ? advance * current!.exchangeRate : advance,
-              notes: "Anticipo — Cotización confirmada",
+              notes: "Anticipo por confirmación de cotización",
               createdByName,
             },
           })
@@ -89,12 +90,34 @@ export async function PATCH(
       return NextResponse.json({ success: true, data: updated })
     }
 
-    // ENVIADA
+    // ENVIADA: registra el mail del cliente y deja constancia en EmailLog.
+    // El envio real depende de EMAIL_SENDING_ENABLED (apagado por defecto).
     if (status === "ENVIADA") {
+      const email = typeof clientEmail === "string" ? clientEmail.trim() : ""
+      if (email && !isValidEmail(email)) {
+        return NextResponse.json(
+          { success: false, error: "El formato del correo no es válido" },
+          { status: 400 }
+        )
+      }
+
       const updated = await prisma.quote.update({
         where: { id: params.id },
-        data: { status, sentAt: now },
+        data: { status, sentAt: now, ...(email ? { clientEmail: email } : {}) },
+        include: { client: true },
       })
+
+      if (email) {
+        // Si el cliente no tenia mail cargado, se le copia este
+        if (!updated.client.email) {
+          await prisma.client.update({
+            where: { id: updated.clientId },
+            data: { email },
+          })
+        }
+        await sendQuoteEmail(params.id, email, createdByName)
+      }
+
       return NextResponse.json({ success: true, data: updated })
     }
 

@@ -9,7 +9,40 @@ import {
   formatParkingSpots,
   getQuoteStatusLabel,
   getRoomStatusLabel,
+  formatQuoteCode,
+  isValidEmail,
 } from "./utils"
+
+describe("formatQuoteCode", () => {
+  it("rellena con cero hasta dos digitos", () => {
+    expect(formatQuoteCode(1)).toBe("VM-01")
+    expect(formatQuoteCode(9)).toBe("VM-09")
+    expect(formatQuoteCode(10)).toBe("VM-10")
+    expect(formatQuoteCode(99)).toBe("VM-99")
+  })
+
+  it("crece solo pasando los dos digitos", () => {
+    expect(formatQuoteCode(100)).toBe("VM-100")
+    expect(formatQuoteCode(1234)).toBe("VM-1234")
+  })
+})
+
+describe("isValidEmail", () => {
+  it("acepta formato usuario@dominio.tld", () => {
+    expect(isValidEmail("rene@correo.com")).toBe(true)
+    expect(isValidEmail("  rene@correo.com  ")).toBe(true)
+    expect(isValidEmail("a.b+c@sub.dominio.gt")).toBe(true)
+  })
+
+  it("rechaza formatos invalidos", () => {
+    expect(isValidEmail("")).toBe(false)
+    expect(isValidEmail("rene")).toBe(false)
+    expect(isValidEmail("rene@")).toBe(false)
+    expect(isValidEmail("rene@dominio")).toBe(false)
+    expect(isValidEmail("rene dominio@x.com")).toBe(false)
+    expect(isValidEmail("@dominio.com")).toBe(false)
+  })
+})
 
 describe("formatCurrency", () => {
   it("usa el simbolo Q literal, sin depender del ICU del runtime", () => {

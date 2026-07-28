@@ -251,6 +251,18 @@ export function isValidTransition(current: string, next: string): boolean {
   return VALID_QUOTE_TRANSITIONS[current]?.includes(next) ?? false
 }
 
+/** Codigo visible de cotizacion: VM-01, VM-02, ... crece solo (VM-100). */
+export function formatQuoteCode(n: number): string {
+  return `VM-${String(n).padStart(2, "0")}`
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Validacion solo de formato (usuario@dominio.tld), sin verificar existencia. */
+export function isValidEmail(email: string): boolean {
+  return EMAIL_REGEX.test((email || "").trim())
+}
+
 export function getRoomStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     DISPONIBLE: 'Disponible',

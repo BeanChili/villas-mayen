@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/db"
 import { requirePermission, requireAnyPermission, requireSession } from "@/lib/permissions"
 import { recomputeQuotePrices, loadCatalogPrices, getCurrentExchangeRate, computeQuoteTotals } from "@/lib/quotes"
+import { formatQuoteCode } from "@/lib/utils"
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.error
 
     const body = await request.json()
-    const { clientId, eventDate, endDate, currency, guestCount, notes, eventTitle, parkingSpot } = body
+    const { clientId, eventDate, endDate, currency, guestCount, notes, eventTitle, parkingSpot, sellerId } = body
     let { exchangeRate, spaces, items } = body
 
     if (!clientId || !eventDate || !spaces || !Array.isArray(spaces) || spaces.length === 0) {
@@ -76,9 +77,26 @@ export async function POST(request: NextRequest) {
     // Calcular totales en el server desde espacios e items
     const subtotal = computeQuoteTotals(spaces, items || [], guestCount)
 
+    // Vendedor: el nombre se resuelve de la base, no se confia en el cliente
+    let sellerName: string | null = null
+    if (sellerId) {
+      const seller = await prisma.seller.findUnique({ where: { id: sellerId } })
+      if (!seller) {
+        return NextResponse.json({ success: false, error: "Vendedor inválido" }, { status: 400 })
+      }
+      sellerName = seller.name
+    }
+
+    // Codigo correlativo VM-NN desde la secuencia (a prueba de concurrencia)
+    const [{ nextval }] = await prisma.$queryRaw<Array<{ nextval: bigint }>>`SELECT nextval('quote_code_seq')`
+    const code = formatQuoteCode(Number(nextval))
+
     const quote = await prisma.quote.create({
       data: {
+        code,
         clientId,
+        sellerId: sellerId || null,
+        sellerName,
         eventDate: new Date(eventDate + "T12:00:00"),
         endDate: endDate ? new Date(endDate + "T12:00:00") : new Date(eventDate + "T12:00:00"),
         currency: currency || "GTQ",

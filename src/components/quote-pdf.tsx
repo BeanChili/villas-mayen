@@ -273,6 +273,8 @@ const styles = StyleSheet.create({
 interface QuotePDFProps {
   quote: {
     id: string
+    code?: string
+    sellerName?: string
     client: { name: string; email?: string; phone?: string; address?: string }
     eventDate: string
     endDate?: string
@@ -350,7 +352,7 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
     })
   }
 
-  const quoteNumber = `VM-${quote.id.slice(-6).toUpperCase()}`
+  const quoteNumber = quote.code || `VM-${quote.id.slice(-6).toUpperCase()}`
   const validityDate = new Date(quote.eventDate)
   validityDate.setDate(validityDate.getDate() + 15)
 
@@ -385,7 +387,7 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Image src="/logo.png" style={{ width: 60, height: 60, marginBottom: 8 }} />
+            <Image src="/logo.png" style={{ width: 90, height: 90, marginBottom: 8 }} />
             <Text style={styles.companyName}>CASA VILLAS MAGEN</Text>
             <Text style={styles.companyInfo}>10 Calle 28-00 Zona 4, Finca El Naranjo</Text>
             <Text style={styles.companyInfo}>Mixco, Guatemala</Text>
@@ -557,10 +559,11 @@ export default function QuotePDF({ quote }: QuotePDFProps) {
         {/* Signature */}
         <View style={styles.signatureSection}>
           <View style={styles.signatureBox}>
-            <Text style={styles.signatureLabel}>Vendedor:</Text>
+            <Text style={styles.signatureLabel}>
+              {quote.sellerName ? `Vendedor: ${quote.sellerName}` : "Vendedor:"}
+            </Text>
           </View>
           <View style={styles.signatureBox}>
-            <Text style={styles.signatureLabel}>Nombre:</Text>
             <Text style={styles.signatureLabel}>Firma</Text>
           </View>
         </View>

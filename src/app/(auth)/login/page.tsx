@@ -51,7 +51,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-20 h-20 flex items-center justify-center">
+          <div className="mx-auto mb-4 w-32 h-32 flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="Casa Villas Magen" className="w-full h-full object-contain" />
           </div>

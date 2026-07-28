@@ -42,8 +42,22 @@ export async function PUT(
     if (!guard.ok) return guard.error
 
     const body = await request.json()
-    const { clientId, eventDate, endDate, notes, currency, guestCount, eventTitle, parkingSpot } = body
+    const { clientId, eventDate, endDate, notes, currency, guestCount, eventTitle, parkingSpot, sellerId } = body
     let { items, spaces, exchangeRate, totalAmount } = body
+
+    // Vendedor: el nombre se resuelve de la base; sellerId null lo desasigna
+    let sellerData: { sellerId: string | null; sellerName: string | null } | undefined
+    if (sellerId !== undefined) {
+      if (sellerId) {
+        const seller = await prisma.seller.findUnique({ where: { id: sellerId } })
+        if (!seller) {
+          return NextResponse.json({ success: false, error: "Vendedor inválido" }, { status: 400 })
+        }
+        sellerData = { sellerId, sellerName: seller.name }
+      } else {
+        sellerData = { sellerId: null, sellerName: null }
+      }
+    }
 
     // Roles sin permiso de precios: se ignoran precios, descuentos, total y
     // tipo de cambio del cliente; todo se recalcula del catalogo y la base
@@ -80,6 +94,7 @@ export async function PUT(
         where: { id: params.id },
         data: {
         clientId,
+        ...(sellerData || {}),
         eventDate: eventDate ? new Date(eventDate + "T12:00:00") : undefined,
         endDate: endDate ? new Date(endDate + "T12:00:00") : (eventDate ? new Date(eventDate + "T12:00:00") : undefined),
         notes,
