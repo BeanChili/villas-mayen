@@ -7,10 +7,14 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(amount: number | string): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount
-  return new Intl.NumberFormat('es-GT', {
-    style: 'currency',
-    currency: 'GTQ',
-  }).format(num)
+  // Formato literal con "Q": el estilo currency de Intl depende del ICU del
+  // runtime y puede renderizar "GTQ" en lugar del simbolo. Mismo patron que
+  // usa el PDF de cotizacion.
+  const formatted = new Intl.NumberFormat('es-GT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(num) ? num : 0)
+  return `Q ${formatted}`
 }
 
 export function formatDate(date: Date | string): string {
