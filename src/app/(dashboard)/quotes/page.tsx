@@ -1820,7 +1820,11 @@ function QuotesContent() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display text-lg">
-              {selectedFurnitureItem ? `Editar ${selectedFurnitureItem.name}` : "Agregar Mobiliario"}
+              {selectedFurnitureItem
+                ? (formData.items.some(i => i.furnitureId === selectedFurnitureItem.id)
+                  ? `Editar ${selectedFurnitureItem.name}`
+                  : `Agregar ${selectedFurnitureItem.name}`)
+                : "Agregar Mobiliario"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
